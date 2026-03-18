@@ -1,0 +1,136 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Cloudflare Workers AI",
+        "description": "Enter your Cloudflare API credentials. You need an API token with Workers AI Read permission.",
+        "data": {
+          "account_id": "Account ID",
+          "api_token": "API Token",
+          "use_ai_gateway": "Use AI Gateway",
+          "gateway_id": "AI Gateway ID",
+          "gateway_api_token": "AI Gateway API Token (if different)"
+        },
+        "data_description": {
+          "account_id": "Your Cloudflare Account ID, found in the dashboard sidebar.",
+          "api_token": "An API token with Workers AI Read permission.",
+          "use_ai_gateway": "Route requests through Cloudflare AI Gateway for analytics, caching, and rate limiting.",
+          "gateway_id": "The name or ID of your AI Gateway.",
+          "gateway_api_token": "A separate API token for AI Gateway authentication. Leave empty to use the same API token."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate",
+        "description": "Please enter a valid API token.",
+        "data": {
+          "api_token": "API Token"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Cloudflare Workers AI",
+        "description": "Update your Cloudflare API credentials and gateway settings.",
+        "data": {
+          "account_id": "Account ID",
+          "api_token": "API Token",
+          "use_ai_gateway": "Use AI Gateway",
+          "gateway_id": "AI Gateway ID",
+          "gateway_api_token": "AI Gateway API Token (if different)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API token or insufficient permissions.",
+      "cannot_connect": "Unable to connect to Cloudflare API.",
+      "unknown": "An unexpected error occurred.",
+      "already_configured": "This Cloudflare account is already configured."
+    },
+    "abort": {
+      "reauth_successful": "Re-authentication successful.",
+      "already_configured": "This Cloudflare account is already configured.",
+      "reconfigure_successful": "Reconfiguration successful."
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "initiation_context": {
+        "title": "Add conversation agent"
+      },
+      "step": {
+        "init": {
+          "title": "Conversation Agent",
+          "description": "Configure the Cloudflare Workers AI conversation agent.",
+          "data": {
+            "name": "Name",
+            "chat_model": "Model",
+            "llm_hass_api": "Control Home Assistant",
+            "prompt": "System prompt",
+            "max_tokens": "Max output tokens",
+            "temperature": "Temperature"
+          },
+          "data_description": {
+            "chat_model": "The Workers AI model to use for conversation. Models with function calling support can control Home Assistant.",
+            "llm_hass_api": "Select which Home Assistant APIs the model can use to control your home.",
+            "prompt": "Instructions for the AI on how to behave and respond.",
+            "max_tokens": "Maximum number of tokens in the response.",
+            "temperature": "Controls randomness. Lower values are more focused, higher values more creative."
+          }
+        }
+      }
+    },
+    "tts": {
+      "initiation_context": {
+        "title": "Add text-to-speech"
+      },
+      "step": {
+        "init": {
+          "title": "Text-to-Speech",
+          "description": "Configure Cloudflare Workers AI text-to-speech.",
+          "data": {
+            "name": "Name",
+            "tts_model": "Model",
+            "voice": "Voice"
+          },
+          "data_description": {
+            "tts_model": "The Workers AI model to use for text-to-speech.",
+            "voice": "The voice to use for speech synthesis."
+          }
+        }
+      }
+    },
+    "stt": {
+      "initiation_context": {
+        "title": "Add speech-to-text"
+      },
+      "step": {
+        "init": {
+          "title": "Speech-to-Text",
+          "description": "Configure Cloudflare Workers AI speech-to-text.",
+          "data": {
+            "name": "Name",
+            "stt_model": "Model"
+          },
+          "data_description": {
+            "stt_model": "The Workers AI model to use for speech-to-text transcription."
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "Authentication with Cloudflare failed. Please check your API token."
+    },
+    "api_error": {
+      "message": "Error communicating with Cloudflare Workers AI: {error}"
+    },
+    "tts_failed": {
+      "message": "Text-to-speech generation failed: {error}"
+    },
+    "stt_failed": {
+      "message": "Speech-to-text transcription failed: {error}"
+    },
+    "max_tool_iterations": {
+      "message": "The AI model was unable to complete the request after multiple attempts."
+    }
+  }
+}

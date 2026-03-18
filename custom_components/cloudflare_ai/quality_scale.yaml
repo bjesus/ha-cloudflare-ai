@@ -1,0 +1,106 @@
+rules:
+  # Bronze (required for all new integrations)
+  action-setup:
+    status: exempt
+    comment: No custom service actions are registered.
+  appropriate-polling:
+    status: exempt
+    comment: This is a cloud service integration, not a polling integration.
+  brands:
+    status: todo
+    comment: Need to submit branding to home-assistant/brands repository.
+  common-modules:
+    status: done
+    comment: |
+      Shared patterns in entity.py (base entity with DeviceInfo),
+      client.py (HTTP wrapper with retry), const.py (all constants).
+  config-flow:
+    status: done
+    comment: Full config flow with credentials, AI Gateway toggle, and 3 subentry types.
+  config-flow-test-coverage:
+    status: done
+    comment: 6 tests covering user step, gateway, auth error, connect error, duplicate, reauth.
+  dependency-transparency:
+    status: done
+    comment: Zero external Python dependencies. Uses HA's built-in httpx client.
+  docs-actions:
+    status: exempt
+    comment: No custom service actions. Uses standard conversation, tts, stt platforms.
+  docs-high-level-description:
+    status: todo
+    comment: Need to write integration documentation for home-assistant.io.
+  docs-installation-instructions:
+    status: todo
+    comment: Need to write setup instructions in documentation.
+  docs-removal-instructions:
+    status: todo
+    comment: Standard removal via UI, but should be documented.
+  entity-event-setup:
+    status: done
+    comment: Conversation agent registered in async_added_to_hass, unregistered in async_will_remove_from_hass.
+  entity-unique-id:
+    status: done
+    comment: All entities use subentry.subentry_id as unique_id.
+  has-entity-name:
+    status: done
+    comment: All entities set _attr_has_entity_name = True via base entity class.
+  runtime-data:
+    status: done
+    comment: CloudflareAIClient stored as entry.runtime_data with typed alias.
+  test-before-configure:
+    status: done
+    comment: Config flow validates credentials via CloudflareAIClient.validate_credentials().
+  test-before-setup:
+    status: done
+    comment: async_setup_entry validates credentials, raises ConfigEntryAuthFailed or ConfigEntryNotReady.
+  unique-config-entry:
+    status: done
+    comment: _async_abort_entries_match on account_id prevents duplicates.
+
+  # Silver (targets for next phase)
+  action-exceptions:
+    status: done
+    comment: Conversation raises HomeAssistantError on CF API failures.
+  config-entry-unloading:
+    status: done
+    comment: Full platform unload in async_unload_entry.
+  docs-configuration-parameters:
+    status: todo
+  docs-installation-parameters:
+    status: todo
+  entity-unavailable:
+    status: todo
+    comment: Entities don't mark themselves unavailable on API errors yet.
+  integration-owner:
+    status: todo
+    comment: Need to add codeowners to manifest.json.
+  log-when-unavailable:
+    status: todo
+  parallel-updates:
+    status: todo
+  reauthentication-flow:
+    status: done
+    comment: Full reauth flow with async_step_reauth + async_step_reauth_confirm.
+  test-coverage:
+    status: done
+    comment: 60 tests across 6 test files covering all modules.
+
+  # Gold (stretch goals)
+  devices:
+    status: done
+    comment: Each subentry creates a device with manufacturer=Cloudflare, model=<model_name>.
+  diagnostics:
+    status: done
+    comment: diagnostics.py provides redacted config dump.
+  discovery:
+    status: exempt
+    comment: Cloud service, not discoverable on the network.
+  discovery-update-info:
+    status: exempt
+    comment: Cloud service, no network discovery.
+  reconfiguration-flow:
+    status: done
+    comment: Main entry reconfigure flow + subentry reconfigure flows.
+  repair-issues:
+    status: todo
+    comment: Could add repair issues for quota errors, model deprecations.
