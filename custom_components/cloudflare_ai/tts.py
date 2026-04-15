@@ -12,7 +12,7 @@ from homeassistant.components.tts import (
 )
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .client import (
     CloudflareAIAuthError,
@@ -156,16 +156,15 @@ def _get_profile(model: str) -> _ModelProfile:
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up TTS entities."""
-    entities = []
-    for subentry_id, subentry in config_entry.subentries.items():
+    for subentry in config_entry.subentries.values():
         if subentry.subentry_type == SUBENTRY_TTS:
-            entities.append(
-                CloudflareTTSEntity(config_entry, subentry)
+            async_add_entities(
+                [CloudflareTTSEntity(config_entry, subentry)],
+                config_subentry_id=subentry.subentry_id,
             )
-    async_add_entities(entities)
 
 
 class CloudflareTTSEntity(TextToSpeechEntity, CloudflareAIBaseEntity):

@@ -320,14 +320,47 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
 class CloudflareAIConversationSubentryFlow(ConfigSubentryFlow):
     """Subentry flow for conversation configuration."""
 
+    options: dict[str, Any]
+
+    @property
+    def _is_new(self) -> bool:
+        """Return True if creating a new subentry."""
+        return self.source == "user"
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle new subentry creation."""
+        self.options = {
+            CONF_CHAT_MODEL: DEFAULT_CHAT_MODEL,
+            CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
+            CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+            CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
+            CONF_PROMPT: DEFAULT_PROMPT,
+        }
+        return await self.async_step_init(user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration of existing subentry."""
+        self.options = dict(self._get_reconfigure_subentry().data)
+        return await self.async_step_init(user_input)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle the init step."""
+        """Handle the shared form step."""
         if user_input is not None:
-            return self.async_create_entry(
-                title=user_input.get("name", "Cloudflare AI Conversation"),
-                data=user_input,
+            self.options.update(user_input)
+            title = self.options.pop("name", "Cloudflare AI Conversation")
+            if self._is_new:
+                return self.async_create_entry(title=title, data=self.options)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=self.options,
+                title=title,
             )
 
         # Get available LLM APIs
@@ -340,151 +373,211 @@ class CloudflareAIConversationSubentryFlow(ConfigSubentryFlow):
             SelectOptionDict(label=m.split("/")[-1], value=m) for m in CHAT_MODELS
         ]
 
+        schema: dict[vol.Optional | vol.Required, Any] = {}
+        if self._is_new:
+            schema[vol.Optional(
+                "name", default="Cloudflare AI Conversation"
+            )] = str
+
+        schema.update({
+            vol.Optional(
+                CONF_CHAT_MODEL,
+                default=self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=chat_model_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+            vol.Optional(
+                CONF_LLM_HASS_API,
+                default=self.options.get(CONF_LLM_HASS_API),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=apis,
+                    multiple=True,
+                )
+            ),
+            vol.Optional(
+                CONF_PROMPT,
+                default=self.options.get(CONF_PROMPT, DEFAULT_PROMPT),
+            ): TemplateSelector(TemplateSelectorConfig()),
+            vol.Optional(
+                CONF_MAX_TOKENS,
+                default=self.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
+                )
+            ),
+            vol.Optional(
+                CONF_TEMPERATURE,
+                default=self.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
+                )
+            ),
+            vol.Optional(
+                CONF_ENABLE_THINKING,
+                default=self.options.get(CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING),
+            ): bool,
+        })
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("name", default="Cloudflare AI Conversation"): str,
-                    vol.Optional(
-                        CONF_CHAT_MODEL, default=DEFAULT_CHAT_MODEL
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=chat_model_options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,
-                        )
-                    ),
-                    vol.Optional(CONF_LLM_HASS_API): SelectSelector(
-                        SelectSelectorConfig(
-                            options=apis,
-                            multiple=True,
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_PROMPT, default=DEFAULT_PROMPT
-                    ): TemplateSelector(TemplateSelectorConfig()),
-                    vol.Optional(
-                        CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_ENABLE_THINKING, default=DEFAULT_ENABLE_THINKING
-                    ): bool,
-                }
-            ),
+            data_schema=vol.Schema(schema),
         )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle reconfiguration."""
-        return await self.async_step_init(user_input)
 
 
 class CloudflareAITTSSubentryFlow(ConfigSubentryFlow):
     """Subentry flow for TTS configuration."""
 
+    options: dict[str, Any]
+
+    @property
+    def _is_new(self) -> bool:
+        return self.source == "user"
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle new subentry creation."""
+        self.options = {
+            CONF_TTS_MODEL: DEFAULT_TTS_MODEL,
+            CONF_VOICE: DEFAULT_TTS_VOICE,
+        }
+        return await self.async_step_init(user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration."""
+        self.options = dict(self._get_reconfigure_subentry().data)
+        return await self.async_step_init(user_input)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle the init step."""
+        """Handle the shared form step."""
         if user_input is not None:
-            return self.async_create_entry(
-                title=user_input.get("name", "Cloudflare AI TTS"),
-                data=user_input,
+            self.options.update(user_input)
+            title = self.options.pop("name", "Cloudflare AI TTS")
+            if self._is_new:
+                return self.async_create_entry(title=title, data=self.options)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=self.options,
+                title=title,
             )
 
         tts_model_options = [
             SelectOptionDict(label=m.split("/")[-1], value=m) for m in TTS_MODELS
         ]
 
-        # Combine all known voices
         all_voices = sorted(set(AURA2_VOICES + AURA1_VOICES))
         voice_options = [
             SelectOptionDict(label=v.capitalize(), value=v) for v in all_voices
         ]
 
+        schema: dict[vol.Optional | vol.Required, Any] = {}
+        if self._is_new:
+            schema[vol.Optional("name", default="Cloudflare AI TTS")] = str
+
+        schema.update({
+            vol.Optional(
+                CONF_TTS_MODEL,
+                default=self.options.get(CONF_TTS_MODEL, DEFAULT_TTS_MODEL),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=tts_model_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+            vol.Optional(
+                CONF_VOICE,
+                default=self.options.get(CONF_VOICE, DEFAULT_TTS_VOICE),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=voice_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+        })
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("name", default="Cloudflare AI TTS"): str,
-                    vol.Optional(
-                        CONF_TTS_MODEL, default=DEFAULT_TTS_MODEL
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=tts_model_options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_VOICE, default=DEFAULT_TTS_VOICE
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=voice_options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,
-                        )
-                    ),
-                }
-            ),
+            data_schema=vol.Schema(schema),
         )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle reconfiguration."""
-        return await self.async_step_init(user_input)
 
 
 class CloudflareAISTTSubentryFlow(ConfigSubentryFlow):
     """Subentry flow for STT configuration."""
 
+    options: dict[str, Any]
+
+    @property
+    def _is_new(self) -> bool:
+        return self.source == "user"
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle new subentry creation."""
+        self.options = {
+            CONF_STT_MODEL: DEFAULT_STT_MODEL,
+        }
+        return await self.async_step_init(user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration."""
+        self.options = dict(self._get_reconfigure_subentry().data)
+        return await self.async_step_init(user_input)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle the init step."""
+        """Handle the shared form step."""
         if user_input is not None:
-            return self.async_create_entry(
-                title=user_input.get("name", "Cloudflare AI STT"),
-                data=user_input,
+            self.options.update(user_input)
+            title = self.options.pop("name", "Cloudflare AI STT")
+            if self._is_new:
+                return self.async_create_entry(title=title, data=self.options)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=self.options,
+                title=title,
             )
 
         stt_model_options = [
             SelectOptionDict(label=m.split("/")[-1], value=m) for m in STT_MODELS
         ]
 
+        schema: dict[vol.Optional | vol.Required, Any] = {}
+        if self._is_new:
+            schema[vol.Optional("name", default="Cloudflare AI STT")] = str
+
+        schema.update({
+            vol.Optional(
+                CONF_STT_MODEL,
+                default=self.options.get(CONF_STT_MODEL, DEFAULT_STT_MODEL),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=stt_model_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+        })
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("name", default="Cloudflare AI STT"): str,
-                    vol.Optional(
-                        CONF_STT_MODEL, default=DEFAULT_STT_MODEL
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=stt_model_options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,
-                        )
-                    ),
-                }
-            ),
+            data_schema=vol.Schema(schema),
         )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle reconfiguration."""
-        return await self.async_step_init(user_input)

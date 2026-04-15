@@ -21,7 +21,7 @@ from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import intent, llm
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .client import (
     CloudflareAIAuthError,
@@ -52,16 +52,15 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up conversation entities."""
-    entities = []
-    for subentry_id, subentry in config_entry.subentries.items():
+    for subentry in config_entry.subentries.values():
         if subentry.subentry_type == SUBENTRY_CONVERSATION:
-            entities.append(
-                CloudflareConversationEntity(config_entry, subentry)
+            async_add_entities(
+                [CloudflareConversationEntity(config_entry, subentry)],
+                config_subentry_id=subentry.subentry_id,
             )
-    async_add_entities(entities)
 
 
 def _format_tool(tool: llm.Tool) -> dict[str, Any]:

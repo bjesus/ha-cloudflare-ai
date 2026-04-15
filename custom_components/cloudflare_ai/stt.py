@@ -22,7 +22,7 @@ from homeassistant.components.stt import (
 )
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .client import (
     CloudflareAIAuthError,
@@ -120,16 +120,15 @@ def _get_profile(model: str) -> _STTModelProfile:
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up STT entities."""
-    entities = []
-    for subentry_id, subentry in config_entry.subentries.items():
+    for subentry in config_entry.subentries.values():
         if subentry.subentry_type == SUBENTRY_STT:
-            entities.append(
-                CloudflareSTTEntity(config_entry, subentry)
+            async_add_entities(
+                [CloudflareSTTEntity(config_entry, subentry)],
+                config_subentry_id=subentry.subentry_id,
             )
-    async_add_entities(entities)
 
 
 class CloudflareSTTEntity(SpeechToTextEntity, CloudflareAIBaseEntity):
