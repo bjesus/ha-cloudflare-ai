@@ -65,6 +65,7 @@ from .const import (
     DEFAULT_TTS_VOICE,
     DOMAIN,
     STT_MODELS,
+    SUBENTRY_AI_TASK,
     SUBENTRY_CONVERSATION,
     SUBENTRY_STT,
     SUBENTRY_TTS,
@@ -88,6 +89,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
         """Return subentries supported by this integration."""
         return {
             SUBENTRY_CONVERSATION: CloudflareAIConversationSubentryFlow,
+            SUBENTRY_AI_TASK: CloudflareAITaskSubentryFlow,
             SUBENTRY_TTS: CloudflareAITTSSubentryFlow,
             SUBENTRY_STT: CloudflareAISTTSubentryFlow,
         }
@@ -149,6 +151,16 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
                                 CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
                                 CONF_PROMPT: DEFAULT_PROMPT,
                                 CONF_LLM_HASS_API: ["assist"],
+                            },
+                        },
+                        {
+                            "subentry_type": SUBENTRY_AI_TASK,
+                            "title": "Cloudflare AI Task",
+                            "data": {
+                                CONF_CHAT_MODEL: DEFAULT_CHAT_MODEL,
+                                CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
+                                CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+                                CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
                             },
                         },
                         {
@@ -575,6 +587,99 @@ class CloudflareAISTTSubentryFlow(ConfigSubentryFlow):
                     custom_value=True,
                 )
             ),
+        })
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(schema),
+        )
+
+
+class CloudflareAITaskSubentryFlow(ConfigSubentryFlow):
+    """Subentry flow for AI task configuration."""
+
+    options: dict[str, Any]
+
+    @property
+    def _is_new(self) -> bool:
+        return self.source == "user"
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle new subentry creation."""
+        self.options = {
+            CONF_CHAT_MODEL: DEFAULT_CHAT_MODEL,
+            CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
+            CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+            CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
+        }
+        return await self.async_step_init(user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration."""
+        self.options = dict(self._get_reconfigure_subentry().data)
+        return await self.async_step_init(user_input)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle the shared form step."""
+        if user_input is not None:
+            self.options.update(user_input)
+            title = self.options.pop("name", "Cloudflare AI Task")
+            if self._is_new:
+                return self.async_create_entry(title=title, data=self.options)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=self.options,
+                title=title,
+            )
+
+        chat_model_options = [
+            SelectOptionDict(label=m.split("/")[-1], value=m) for m in CHAT_MODELS
+        ]
+
+        schema: dict[vol.Optional | vol.Required, Any] = {}
+        if self._is_new:
+            schema[vol.Optional("name", default="Cloudflare AI Task")] = str
+
+        schema.update({
+            vol.Optional(
+                CONF_CHAT_MODEL,
+                default=self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=chat_model_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+            vol.Optional(
+                CONF_MAX_TOKENS,
+                default=self.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
+                )
+            ),
+            vol.Optional(
+                CONF_TEMPERATURE,
+                default=self.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
+                )
+            ),
+            vol.Optional(
+                CONF_ENABLE_THINKING,
+                default=self.options.get(
+                    CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING
+                ),
+            ): bool,
         })
 
         return self.async_show_form(

@@ -27,7 +27,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = (Platform.CONVERSATION, Platform.STT, Platform.TTS)
+PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION, Platform.STT, Platform.TTS)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 

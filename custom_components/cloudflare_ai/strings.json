@@ -122,6 +122,32 @@
           }
         }
       }
+    },
+    "ai_task_data": {
+      "entry_type": "AI task",
+      "initiate_flow": {
+        "user": "Add AI task",
+        "reconfigure": "Reconfigure AI task"
+      },
+      "step": {
+        "init": {
+          "title": "AI Task",
+          "description": "Configure Cloudflare Workers AI for AI tasks like data generation and summarization.",
+          "data": {
+            "name": "Name",
+            "chat_model": "Model",
+            "max_tokens": "Max output tokens",
+            "temperature": "Temperature",
+            "enable_thinking": "Enable reasoning"
+          },
+          "data_description": {
+            "chat_model": "The Workers AI model to use for AI tasks.",
+            "max_tokens": "Maximum number of tokens in the response.",
+            "temperature": "Controls randomness. Lower values are more focused, higher values more creative.",
+            "enable_thinking": "When enabled, the model reasons step-by-step before answering."
+          }
+        }
+      }
     }
   },
   "exceptions": {

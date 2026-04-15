@@ -41,6 +41,7 @@ MAX_TOOL_ITERATIONS = 10
 
 # Subentry types
 SUBENTRY_CONVERSATION = "conversation"
+SUBENTRY_AI_TASK = "ai_task_data"
 SUBENTRY_TTS = "tts"
 SUBENTRY_STT = "stt"
 
