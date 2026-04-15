@@ -52,8 +52,10 @@
   },
   "config_subentries": {
     "conversation": {
-      "initiation_context": {
-        "title": "Add conversation agent"
+      "entry_type": "Conversation agent",
+      "initiate_flow": {
+        "user": "Add conversation agent",
+        "reconfigure": "Reconfigure conversation agent"
       },
       "step": {
         "init": {
@@ -80,8 +82,10 @@
       }
     },
     "tts": {
-      "initiation_context": {
-        "title": "Add text-to-speech"
+      "entry_type": "Text-to-speech",
+      "initiate_flow": {
+        "user": "Add text-to-speech service",
+        "reconfigure": "Reconfigure text-to-speech service"
       },
       "step": {
         "init": {
@@ -100,8 +104,10 @@
       }
     },
     "stt": {
-      "initiation_context": {
-        "title": "Add speech-to-text"
+      "entry_type": "Speech-to-text",
+      "initiate_flow": {
+        "user": "Add speech-to-text service",
+        "reconfigure": "Reconfigure speech-to-text service"
       },
       "step": {
         "init": {
