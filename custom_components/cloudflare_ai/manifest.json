@@ -2,13 +2,13 @@
   "domain": "cloudflare_ai",
   "name": "Cloudflare Workers AI",
   "after_dependencies": ["assist_pipeline", "intent"],
-  "codeowners": [],
+  "codeowners": ["@bjesus"],
   "config_flow": true,
   "dependencies": ["ai_task", "conversation"],
-  "documentation": "https://www.home-assistant.io/integrations/cloudflare_ai",
+  "documentation": "https://github.com/bjesus/ha-cloudflare-ai",
+  "issue_tracker": "https://github.com/bjesus/ha-cloudflare-ai/issues",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "quality_scale": "bronze",
   "requirements": [],
   "version": "0.1.0"
 }
