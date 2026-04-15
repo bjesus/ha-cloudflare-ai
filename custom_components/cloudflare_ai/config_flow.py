@@ -53,8 +53,10 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_TTS_MODEL,
     CONF_USE_AI_GATEWAY,
+    CONF_ENABLE_THINKING,
     CONF_VOICE,
     DEFAULT_CHAT_MODEL,
+    DEFAULT_ENABLE_THINKING,
     DEFAULT_MAX_TOKENS,
     DEFAULT_PROMPT,
     DEFAULT_STT_MODEL,
@@ -144,6 +146,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
                                 CONF_CHAT_MODEL: DEFAULT_CHAT_MODEL,
                                 CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
                                 CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+                                CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
                                 CONF_PROMPT: DEFAULT_PROMPT,
                                 CONF_LLM_HASS_API: ["assist"],
                             },
@@ -374,6 +377,9 @@ class CloudflareAIConversationSubentryFlow(ConfigSubentryFlow):
                             min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
                         )
                     ),
+                    vol.Optional(
+                        CONF_ENABLE_THINKING, default=DEFAULT_ENABLE_THINKING
+                    ): bool,
                 }
             ),
         )

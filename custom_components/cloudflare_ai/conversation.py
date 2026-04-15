@@ -30,10 +30,12 @@ from .client import (
 )
 from .const import (
     CONF_CHAT_MODEL,
+    CONF_ENABLE_THINKING,
     CONF_MAX_TOKENS,
     CONF_PROMPT,
     CONF_TEMPERATURE,
     DEFAULT_CHAT_MODEL,
+    DEFAULT_ENABLE_THINKING,
     DEFAULT_MAX_TOKENS,
     DEFAULT_PROMPT,
     DEFAULT_TEMPERATURE,
@@ -216,6 +218,9 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
         model = options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL)
         max_tokens = int(options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS))
         temperature = float(options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE))
+        enable_thinking = bool(
+            options.get(CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING)
+        )
 
         # Tool-calling loop.
         # When tools are configured, use non-streaming requests so we get
@@ -227,6 +232,9 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
                     "messages": messages,
                     "max_tokens": max_tokens,
                     "temperature": temperature,
+                    "chat_template_kwargs": {
+                        "enable_thinking": enable_thinking,
+                    },
                 }
                 if tools:
                     request_body["tools"] = tools

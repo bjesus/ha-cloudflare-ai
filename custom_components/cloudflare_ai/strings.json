@@ -65,14 +65,16 @@
             "llm_hass_api": "Control Home Assistant",
             "prompt": "System prompt",
             "max_tokens": "Max output tokens",
-            "temperature": "Temperature"
+            "temperature": "Temperature",
+            "enable_thinking": "Enable reasoning"
           },
           "data_description": {
             "chat_model": "The Workers AI model to use for conversation. Models with function calling support can control Home Assistant.",
             "llm_hass_api": "Select which Home Assistant APIs the model can use to control your home.",
             "prompt": "Instructions for the AI on how to behave and respond.",
             "max_tokens": "Maximum number of tokens in the response.",
-            "temperature": "Controls randomness. Lower values are more focused, higher values more creative."
+            "temperature": "Controls randomness. Lower values are more focused, higher values more creative.",
+            "enable_thinking": "When enabled, the model reasons step-by-step before answering. Improves accuracy but increases response time. Supported by Kimi K2.5, QwQ, and other reasoning models."
           }
         }
       }

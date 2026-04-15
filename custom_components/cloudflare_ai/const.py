@@ -15,18 +15,20 @@ CONF_MAX_TOKENS = "max_tokens"
 CONF_TEMPERATURE = "temperature"
 CONF_PROMPT = "prompt"
 CONF_VOICE = "voice"
+CONF_ENABLE_THINKING = "enable_thinking"
 
 # API URLs
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
 CF_AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1"
 
 # Defaults
-DEFAULT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+DEFAULT_CHAT_MODEL = "@cf/moonshotai/kimi-k2.5"
 DEFAULT_TTS_MODEL = "@cf/deepgram/aura-2-en"
 DEFAULT_STT_MODEL = "@cf/openai/whisper-large-v3-turbo"
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.6
 DEFAULT_TTS_VOICE = "luna"
+DEFAULT_ENABLE_THINKING = False
 DEFAULT_PROMPT = """You are a helpful voice assistant for Home Assistant.
 Answer in plain text. Be brief and concise."""
 
@@ -44,26 +46,33 @@ SUBENTRY_STT = "stt"
 
 # Known models by task type
 CHAT_MODELS = [
+    "@cf/moonshotai/kimi-k2.5",
     "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    "@cf/meta/llama-3.1-8b-instruct-fast",
-    "@cf/meta/llama-3.1-70b-instruct",
-    "@cf/meta/llama-3.1-8b-instruct",
     "@cf/meta/llama-4-scout-17b-16e-instruct",
+    "@cf/openai/gpt-oss-120b",
+    "@cf/openai/gpt-oss-20b",
     "@cf/qwen/qwen3-30b-a3b-fp8",
     "@cf/qwen/qwq-32b",
     "@cf/mistralai/mistral-small-3.1-24b-instruct",
     "@cf/google/gemma-3-12b-it",
+    "@cf/nvidia/nemotron-3-120b-a12b",
+    "@cf/zai-org/glm-4.7-flash",
+    "@cf/meta/llama-3.1-70b-instruct",
+    "@cf/meta/llama-3.1-8b-instruct-fast",
     "@cf/deepseek/deepseek-r1-distill-qwen-32b",
-    "@cf/openai/gpt-oss-120b",
-    "@cf/openai/gpt-oss-20b",
 ]
 
 # Models known to support function calling
 FUNCTION_CALLING_MODELS = [
+    "@cf/moonshotai/kimi-k2.5",
     "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "@cf/meta/llama-4-scout-17b-16e-instruct",
     "@cf/qwen/qwen3-30b-a3b-fp8",
     "@cf/mistralai/mistral-small-3.1-24b-instruct",
+    "@cf/openai/gpt-oss-120b",
+    "@cf/openai/gpt-oss-20b",
+    "@cf/nvidia/nemotron-3-120b-a12b",
+    "@cf/zai-org/glm-4.7-flash",
 ]
 
 TTS_MODELS = [

@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.components.tts import (
     TextToSpeechEntity,
     TtsAudioType,
+    Voice,
 )
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant, callback
@@ -204,9 +205,14 @@ class CloudflareTTSEntity(TextToSpeechEntity, CloudflareAIBaseEntity):
         return {}
 
     @callback
-    def async_get_supported_voices(self, language: str) -> list[str] | None:
+    def async_get_supported_voices(self, language: str) -> list[Voice] | None:
         """Return supported voices for a language."""
-        return self._profile.voices
+        if self._profile.voices is None:
+            return None
+        return [
+            Voice(voice_id=v, name=v.capitalize())
+            for v in self._profile.voices
+        ]
 
     async def async_get_tts_audio(
         self,
