@@ -135,13 +135,15 @@
           "description": "Configure Cloudflare Workers AI for AI tasks like data generation and summarization.",
           "data": {
             "name": "Name",
-            "chat_model": "Model",
+            "chat_model": "Text model",
+            "image_model": "Image model",
             "max_tokens": "Max output tokens",
             "temperature": "Temperature",
             "enable_thinking": "Enable reasoning"
           },
           "data_description": {
-            "chat_model": "The Workers AI model to use for AI tasks.",
+            "chat_model": "The Workers AI model to use for text generation tasks.",
+            "image_model": "The Workers AI model to use for image generation tasks (FLUX, Stable Diffusion, etc.).",
             "max_tokens": "Maximum number of tokens in the response.",
             "temperature": "Controls randomness. Lower values are more focused, higher values more creative.",
             "enable_thinking": "When enabled, the model reasons step-by-step before answering."

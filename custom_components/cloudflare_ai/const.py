@@ -16,6 +16,7 @@ CONF_TEMPERATURE = "temperature"
 CONF_PROMPT = "prompt"
 CONF_VOICE = "voice"
 CONF_ENABLE_THINKING = "enable_thinking"
+CONF_IMAGE_MODEL = "image_model"
 
 # API URLs
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
@@ -29,6 +30,7 @@ DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.6
 DEFAULT_TTS_VOICE = "luna"
 DEFAULT_ENABLE_THINKING = False
+DEFAULT_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
 DEFAULT_PROMPT = """You are a helpful voice assistant for Home Assistant.
 Answer in plain text. Be brief and concise."""
 
@@ -74,6 +76,18 @@ FUNCTION_CALLING_MODELS = [
     "@cf/openai/gpt-oss-20b",
     "@cf/nvidia/nemotron-3-120b-a12b",
     "@cf/zai-org/glm-4.7-flash",
+]
+
+IMAGE_MODELS = [
+    "@cf/black-forest-labs/flux-1-schnell",
+    "@cf/black-forest-labs/flux-2-klein-4b",
+    "@cf/black-forest-labs/flux-2-klein-9b",
+    "@cf/black-forest-labs/flux-2-dev",
+    "@cf/leonardo/lucid-origin",
+    "@cf/leonardo/phoenix-1.0",
+    "@cf/bytedance/stable-diffusion-xl-lightning",
+    "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+    "@cf/lykon/dreamshaper-8-lcm",
 ]
 
 TTS_MODELS = [

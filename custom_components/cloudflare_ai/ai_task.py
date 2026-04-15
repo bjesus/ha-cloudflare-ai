@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from typing import Any
@@ -20,10 +21,12 @@ from .client import (
 from .const import (
     CONF_CHAT_MODEL,
     CONF_ENABLE_THINKING,
+    CONF_IMAGE_MODEL,
     CONF_MAX_TOKENS,
     CONF_TEMPERATURE,
     DEFAULT_CHAT_MODEL,
     DEFAULT_ENABLE_THINKING,
+    DEFAULT_IMAGE_MODEL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     DOMAIN,
@@ -51,7 +54,10 @@ async def async_setup_entry(
 class CloudflareAITaskEntity(ai_task.AITaskEntity, CloudflareAIBaseEntity):
     """Cloudflare Workers AI task entity."""
 
-    _attr_supported_features = ai_task.AITaskEntityFeature.GENERATE_DATA
+    _attr_supported_features = (
+        ai_task.AITaskEntityFeature.GENERATE_DATA
+        | ai_task.AITaskEntityFeature.GENERATE_IMAGE
+    )
 
     def __init__(
         self,
@@ -157,6 +163,60 @@ class CloudflareAITaskEntity(ai_task.AITaskEntity, CloudflareAIBaseEntity):
         return ai_task.GenDataTaskResult(
             conversation_id=chat_log.conversation_id,
             data=data,
+        )
+
+    async def _async_generate_image(
+        self,
+        task: ai_task.GenImageTask,
+        chat_log: conversation.ChatLog,
+    ) -> ai_task.GenImageTaskResult:
+        """Handle an image generation task."""
+        client: CloudflareAIClient = self._config_entry.runtime_data
+        options = self._subentry.data
+
+        image_model = options.get(CONF_IMAGE_MODEL, DEFAULT_IMAGE_MODEL)
+
+        input_data: dict[str, Any] = {
+            "prompt": task.instructions,
+        }
+
+        try:
+            response_data = await client.run_model(
+                image_model, input_data, timeout=120.0
+            )
+        except CloudflareAIAuthError as err:
+            _LOGGER.error("Image generation auth error: %s", err)
+            self._config_entry.async_start_reauth(self.hass)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="auth_failed",
+            ) from err
+        except CloudflareAIError as err:
+            _LOGGER.error("Image generation error: %s", err)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="api_error",
+                translation_placeholders={"error": str(err)},
+            ) from err
+
+        # Extract image from response
+        # Workers AI text-to-image returns {"image": "<base64>"} (JPEG)
+        if not isinstance(response_data, dict) or "image" not in response_data:
+            raise HomeAssistantError("No image returned from model")
+
+        image_data = base64.b64decode(response_data["image"])
+
+        # Detect format from magic bytes
+        if image_data[:8] == b"\x89PNG\r\n\x1a\n":
+            mime_type = "image/png"
+        else:
+            mime_type = "image/jpeg"
+
+        return ai_task.GenImageTaskResult(
+            image_data=image_data,
+            conversation_id=chat_log.conversation_id,
+            mime_type=mime_type,
+            model=image_model,
         )
 
     @staticmethod

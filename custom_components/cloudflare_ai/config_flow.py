@@ -47,6 +47,7 @@ from .const import (
     CONF_CHAT_MODEL,
     CONF_GATEWAY_API_TOKEN,
     CONF_GATEWAY_ID,
+    CONF_IMAGE_MODEL,
     CONF_MAX_TOKENS,
     CONF_PROMPT,
     CONF_STT_MODEL,
@@ -57,6 +58,7 @@ from .const import (
     CONF_VOICE,
     DEFAULT_CHAT_MODEL,
     DEFAULT_ENABLE_THINKING,
+    DEFAULT_IMAGE_MODEL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_PROMPT,
     DEFAULT_STT_MODEL,
@@ -64,6 +66,7 @@ from .const import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
     DOMAIN,
+    IMAGE_MODELS,
     STT_MODELS,
     SUBENTRY_AI_TASK,
     SUBENTRY_CONVERSATION,
@@ -161,6 +164,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
                                 CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
                                 CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
                                 CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
+                                CONF_IMAGE_MODEL: DEFAULT_IMAGE_MODEL,
                             },
                         },
                         {
@@ -613,6 +617,7 @@ class CloudflareAITaskSubentryFlow(ConfigSubentryFlow):
             CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
             CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
             CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
+            CONF_IMAGE_MODEL: DEFAULT_IMAGE_MODEL,
         }
         return await self.async_step_init(user_input)
 
@@ -642,6 +647,9 @@ class CloudflareAITaskSubentryFlow(ConfigSubentryFlow):
         chat_model_options = [
             SelectOptionDict(label=m.split("/")[-1], value=m) for m in CHAT_MODELS
         ]
+        image_model_options = [
+            SelectOptionDict(label=m.split("/")[-1], value=m) for m in IMAGE_MODELS
+        ]
 
         schema: dict[vol.Optional | vol.Required, Any] = {}
         if self._is_new:
@@ -654,6 +662,16 @@ class CloudflareAITaskSubentryFlow(ConfigSubentryFlow):
             ): SelectSelector(
                 SelectSelectorConfig(
                     options=chat_model_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+            vol.Optional(
+                CONF_IMAGE_MODEL,
+                default=self.options.get(CONF_IMAGE_MODEL, DEFAULT_IMAGE_MODEL),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=image_model_options,
                     mode=SelectSelectorMode.DROPDOWN,
                     custom_value=True,
                 )
