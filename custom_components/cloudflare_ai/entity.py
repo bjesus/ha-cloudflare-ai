@@ -12,7 +12,10 @@ from .const import DOMAIN
 class CloudflareAIBaseEntity(Entity):
     """Base entity for Cloudflare Workers AI."""
 
-    _attr_has_entity_name = True
+    # Do NOT use has_entity_name=True here. The TTS system requires
+    # entity.name to return a non-None string for the engine name,
+    # and has_entity_name=True with name=None returns None internally
+    # even though the friendly_name is resolved via the device.
 
     def __init__(
         self,
@@ -30,6 +33,7 @@ class CloudflareAIBaseEntity(Entity):
         self._config_entry = config_entry
         self._subentry = subentry
         self._attr_unique_id = subentry.subentry_id
+        self._attr_name = subentry.title
         model_name = subentry.data.get(model_key, "unknown")
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, subentry.subentry_id)},
