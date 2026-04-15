@@ -1,3 +1,20 @@
 {
-  "services": {}
+  "services": {},
+  "config_subentries": {
+    "conversation": {
+      "initiation_context": {
+        "icon": "mdi:chat"
+      }
+    },
+    "tts": {
+      "initiation_context": {
+        "icon": "mdi:speaker-message"
+      }
+    },
+    "stt": {
+      "initiation_context": {
+        "icon": "mdi:microphone-message"
+      }
+    }
+  }
 }
