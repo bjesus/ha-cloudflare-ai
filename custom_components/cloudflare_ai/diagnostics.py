@@ -23,12 +23,14 @@ async def async_get_config_entry_diagnostics(
     """Return diagnostics for a config entry."""
     subentries = []
     for subentry_id, subentry in entry.subentries.items():
-        subentries.append({
-            "subentry_id": subentry_id,
-            "subentry_type": subentry.subentry_type,
-            "title": subentry.title,
-            "data": dict(subentry.data),
-        })
+        subentries.append(
+            {
+                "subentry_id": subentry_id,
+                "subentry_type": subentry.subentry_type,
+                "title": subentry.title,
+                "data": dict(subentry.data),
+            }
+        )
 
     return {
         "config_entry": async_redact_data(dict(entry.data), TO_REDACT),

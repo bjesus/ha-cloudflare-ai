@@ -32,7 +32,6 @@ from .client import (
 from .const import (
     CONF_STT_MODEL,
     DEFAULT_STT_MODEL,
-    DOMAIN,
     NOVA3_LANGUAGES,
     SUBENTRY_STT,
     WHISPER_LANGUAGES,
@@ -51,6 +50,7 @@ _LOGGER = logging.getLogger(__name__)
 #
 # We define profiles for known models and a sensible fallback.
 # ---------------------------------------------------------------------------
+
 
 class _STTModelProfile:
     """Describes how to send audio to a specific STT model and parse its response."""
@@ -116,6 +116,7 @@ def _get_profile(model: str) -> _STTModelProfile:
 # ---------------------------------------------------------------------------
 # Entity
 # ---------------------------------------------------------------------------
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -268,9 +269,7 @@ class CloudflareSTTEntity(SpeechToTextEntity, CloudflareAIBaseEntity):
             "language": language,
         }
 
-        result = await client.run_model(
-            self._model, input_data, timeout=60.0
-        )
+        result = await client.run_model(self._model, input_data, timeout=60.0)
 
         return self._extract_text(result)
 

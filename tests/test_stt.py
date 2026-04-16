@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from custom_components.cloudflare_ai.stt import (
     CloudflareSTTEntity,
     _get_profile,
@@ -52,9 +50,7 @@ class TestResponseParsing:
         """Test Deepgram-style nested response."""
         result = {
             "results": {
-                "channels": [
-                    {"alternatives": [{"transcript": "Hello Deepgram"}]}
-                ]
+                "channels": [{"alternatives": [{"transcript": "Hello Deepgram"}]}]
             }
         }
         entity = _make_dummy_entity()

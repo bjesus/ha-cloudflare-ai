@@ -4,18 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
-from custom_components.cloudflare_ai.const import DOMAIN
-
-from .conftest import TEST_ACCOUNT_ID
-
 
 async def test_setup_entry_success(
-    hass: HomeAssistant, mock_config_entry, mock_validate_credentials,
+    hass: HomeAssistant,
+    mock_config_entry,
+    mock_validate_credentials,
     setup_ha_components,
 ) -> None:
     """Test successful setup of a config entry."""
@@ -27,7 +23,9 @@ async def test_setup_entry_success(
 
 
 async def test_setup_entry_auth_failed(
-    hass: HomeAssistant, mock_config_entry, setup_ha_components,
+    hass: HomeAssistant,
+    mock_config_entry,
+    setup_ha_components,
 ) -> None:
     """Test setup fails with ConfigEntryAuthFailed on auth error."""
     from custom_components.cloudflare_ai.client import CloudflareAIAuthError
@@ -44,7 +42,9 @@ async def test_setup_entry_auth_failed(
 
 
 async def test_setup_entry_not_ready(
-    hass: HomeAssistant, mock_config_entry, setup_ha_components,
+    hass: HomeAssistant,
+    mock_config_entry,
+    setup_ha_components,
 ) -> None:
     """Test setup retries with ConfigEntryNotReady on connection error."""
     from custom_components.cloudflare_ai.client import CloudflareAIConnectionError
@@ -61,7 +61,9 @@ async def test_setup_entry_not_ready(
 
 
 async def test_unload_entry(
-    hass: HomeAssistant, mock_config_entry, mock_validate_credentials,
+    hass: HomeAssistant,
+    mock_config_entry,
+    mock_validate_credentials,
     setup_ha_components,
 ) -> None:
     """Test unloading a config entry."""

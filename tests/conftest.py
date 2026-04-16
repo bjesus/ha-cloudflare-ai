@@ -4,31 +4,25 @@ from __future__ import annotations
 
 import base64
 import io
-import json
 import pathlib
 import wave
 from collections.abc import Generator
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
+from homeassistant import loader
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant
-from homeassistant import loader
-
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
-    MockModule,
-    mock_integration,
-    mock_platform,
 )
 
 from custom_components.cloudflare_ai.const import (
     CONF_ACCOUNT_ID,
     CONF_API_TOKEN,
     CONF_CHAT_MODEL,
-    CONF_GATEWAY_API_TOKEN,
-    CONF_GATEWAY_ID,
+    CONF_ENABLE_THINKING,
+    CONF_IMAGE_MODEL,
     CONF_MAX_TOKENS,
     CONF_PROMPT,
     CONF_STT_MODEL,
@@ -37,9 +31,12 @@ from custom_components.cloudflare_ai.const import (
     CONF_USE_AI_GATEWAY,
     CONF_VOICE,
     DEFAULT_CHAT_MODEL,
+    DEFAULT_ENABLE_THINKING,
+    DEFAULT_IMAGE_MODEL,
     DEFAULT_STT_MODEL,
     DEFAULT_TTS_MODEL,
     DOMAIN,
+    SUBENTRY_AI_TASK,
     SUBENTRY_CONVERSATION,
     SUBENTRY_STT,
     SUBENTRY_TTS,
@@ -51,7 +48,9 @@ TEST_GATEWAY_ID = "test-gateway"
 TEST_GATEWAY_TOKEN = "test_gw_token_789"
 
 # Path to the custom component
-_COMPONENT_DIR = pathlib.Path(__file__).parent.parent / "custom_components" / "cloudflare_ai"
+_COMPONENT_DIR = (
+    pathlib.Path(__file__).parent.parent / "custom_components" / "cloudflare_ai"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -86,11 +85,9 @@ async def auto_enable_custom_integrations(
         mod = importlib.import_module(integration.pkg_path)
         comp_cache[domain] = mod
         # Import known platform modules
-        for platform in ("config_flow", "conversation", "tts", "stt"):
+        for platform in ("ai_task", "config_flow", "conversation", "tts", "stt"):
             try:
-                pmod = importlib.import_module(
-                    f"{integration.pkg_path}.{platform}"
-                )
+                pmod = importlib.import_module(f"{integration.pkg_path}.{platform}")
                 comp_cache[f"{domain}.{platform}"] = pmod
             except ImportError:
                 pass
@@ -135,6 +132,18 @@ def mock_config_entry(hass: HomeAssistant) -> MockConfigEntry:
                     CONF_TEMPERATURE: 0.6,
                     CONF_PROMPT: "You are a helpful assistant.",
                     CONF_LLM_HASS_API: ["assist"],
+                },
+            },
+            {
+                "subentry_type": SUBENTRY_AI_TASK,
+                "title": "Cloudflare AI Task",
+                "unique_id": None,
+                "data": {
+                    CONF_CHAT_MODEL: DEFAULT_CHAT_MODEL,
+                    CONF_MAX_TOKENS: 1024,
+                    CONF_TEMPERATURE: 0.6,
+                    CONF_ENABLE_THINKING: DEFAULT_ENABLE_THINKING,
+                    CONF_IMAGE_MODEL: DEFAULT_IMAGE_MODEL,
                 },
             },
             {
@@ -258,13 +267,7 @@ SAMPLE_STT_WHISPER_RESPONSE = {
 
 SAMPLE_STT_NOVA_RESPONSE = {
     "results": {
-        "channels": [
-            {
-                "alternatives": [
-                    {"transcript": "Hello, how can I help you?"}
-                ]
-            }
-        ]
+        "channels": [{"alternatives": [{"transcript": "Hello, how can I help you?"}]}]
     }
 }
 

@@ -123,13 +123,13 @@ def _validator_to_json(validator: Any, name: str = "") -> dict[str, Any]:
     """Convert a voluptuous validator to a JSON Schema property."""
     import voluptuous as vol
 
-    if validator is str or validator == str:
+    if validator is str:
         return {"type": "string"}
-    if validator is int or validator == int:
+    if validator is int:
         return {"type": "integer"}
-    if validator is float or validator == float:
+    if validator is float:
         return {"type": "number"}
-    if validator is bool or validator == bool:
+    if validator is bool:
         return {"type": "boolean"}
     if isinstance(validator, vol.All):
         # Use the first validator that gives a useful type
@@ -247,9 +247,7 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
                     self._trace_usage(chat_log, response_data)
 
                     if assistant_message.get("tool_calls"):
-                        self._append_tool_call_messages(
-                            messages, assistant_message
-                        )
+                        self._append_tool_call_messages(messages, assistant_message)
                         tool_results = await self._execute_tool_calls(
                             assistant_message["tool_calls"],
                             chat_log,
@@ -312,15 +310,19 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
 
         for content in chat_log.content:
             if isinstance(content, conversation.SystemContent):
-                messages.append({
-                    "role": "system",
-                    "content": content.content or "",
-                })
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": content.content or "",
+                    }
+                )
             elif isinstance(content, conversation.UserContent):
-                messages.append({
-                    "role": "user",
-                    "content": content.content or "",
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": content.content or "",
+                    }
+                )
             elif isinstance(content, conversation.AssistantContent):
                 msg: dict[str, Any] = {
                     "role": "assistant",
@@ -340,11 +342,13 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
                     ]
                 messages.append(msg)
             elif isinstance(content, ToolResultContent):
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": content.tool_call_id,
-                    "content": json.dumps(content.tool_result),
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": content.tool_call_id,
+                        "content": json.dumps(content.tool_result),
+                    }
+                )
 
         return messages
 
@@ -405,7 +409,7 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
         client: CloudflareAIClient,
         model: str,
         request_body: dict[str, Any],
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any]]:
         """Stream a Workers AI response and yield chat_log delta dicts.
 
         Yields dicts consumed by chat_log.async_add_delta_content_stream():
@@ -443,24 +447,28 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
         for tc in assistant_message["tool_calls"]:
             if "function" not in tc:
                 # CF native format -> normalize to OpenAI format
-                normalized_tcs.append({
-                    "id": tc.get("id", tc.get("name", "call")),
-                    "type": "function",
-                    "function": {
-                        "name": tc.get("name", ""),
-                        "arguments": json.dumps(tc.get("arguments", {}))
+                normalized_tcs.append(
+                    {
+                        "id": tc.get("id", tc.get("name", "call")),
+                        "type": "function",
+                        "function": {
+                            "name": tc.get("name", ""),
+                            "arguments": json.dumps(tc.get("arguments", {}))
                             if not isinstance(tc.get("arguments"), str)
                             else tc.get("arguments", "{}"),
-                    },
-                })
+                        },
+                    }
+                )
             else:
                 normalized_tcs.append(tc)
 
-        messages.append({
-            "role": "assistant",
-            "content": assistant_message.get("content", ""),
-            "tool_calls": normalized_tcs,
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": assistant_message.get("content", ""),
+                "tool_calls": normalized_tcs,
+            }
+        )
 
     async def _execute_tool_calls(
         self,
@@ -484,13 +492,15 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
                 raw_args = tc.get("arguments", "{}")
                 tool_call_id = tc.get("id", tool_name)
             try:
-                tool_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                tool_args = (
+                    json.loads(raw_args)
+                    if isinstance(raw_args, str)
+                    else (raw_args or {})
+                )
             except json.JSONDecodeError:
                 tool_args = {}
 
-            _LOGGER.debug(
-                "Executing tool %s with args: %s", tool_name, tool_args
-            )
+            _LOGGER.debug("Executing tool %s with args: %s", tool_name, tool_args)
 
             if chat_log.llm_api:
                 try:
@@ -498,9 +508,7 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
                         tool_name=tool_name,
                         tool_args=tool_args,
                     )
-                    tool_response = await chat_log.llm_api.async_call_tool(
-                        tool_input
-                    )
+                    tool_response = await chat_log.llm_api.async_call_tool(tool_input)
                     result_str = json.dumps(tool_response)
                 except Exception as err:
                     _LOGGER.error("Tool call %s failed: %s", tool_name, err)
@@ -508,10 +516,12 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
             else:
                 result_str = json.dumps({"error": "No LLM API configured"})
 
-            results.append({
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": result_str,
-            })
+            results.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": result_str,
+                }
+            )
 
         return results

@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -66,8 +65,8 @@ async def test_user_step_success(hass: HomeAssistant) -> None:
         assert result["data"][CONF_ACCOUNT_ID] == TEST_ACCOUNT_ID
         assert result["data"][CONF_API_TOKEN] == TEST_API_TOKEN
         assert result["data"][CONF_USE_AI_GATEWAY] is False
-        # Should create 3 default subentries
-        assert len(result.get("subentries", [])) == 3
+        # Should create 4 default subentries (conversation, ai_task, tts, stt)
+        assert len(result.get("subentries", [])) == 4
 
 
 async def test_user_step_with_gateway(hass: HomeAssistant) -> None:
@@ -168,9 +167,7 @@ async def test_user_step_duplicate_entry(
         assert result["reason"] == "already_configured"
 
 
-async def test_reauth_flow(
-    hass: HomeAssistant, mock_config_entry
-) -> None:
+async def test_reauth_flow(hass: HomeAssistant, mock_config_entry) -> None:
     """Test the reauth flow."""
     with patch(
         "custom_components.cloudflare_ai.config_flow.CloudflareAIClient.validate_credentials",
@@ -188,3 +185,31 @@ async def test_reauth_flow(
         assert result["type"] is FlowResultType.ABORT
         assert result["reason"] == "reauth_successful"
         assert mock_config_entry.data[CONF_API_TOKEN] == "new_token_123"
+
+
+async def test_reconfigure_flow(hass: HomeAssistant, mock_config_entry) -> None:
+    """Test the main entry reconfigure flow."""
+    with patch(
+        "custom_components.cloudflare_ai.config_flow.CloudflareAIClient.validate_credentials",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        result = await mock_config_entry.start_reconfigure_flow(hass)
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "reconfigure"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_ACCOUNT_ID: "new_account_id",
+                CONF_API_TOKEN: "new_token",
+                CONF_USE_AI_GATEWAY: True,
+                CONF_GATEWAY_ID: "my-gw",
+                CONF_GATEWAY_API_TOKEN: "gw-token",
+            },
+        )
+        assert result["type"] is FlowResultType.ABORT
+        assert result["reason"] == "reconfigure_successful"
+        assert mock_config_entry.data[CONF_ACCOUNT_ID] == "new_account_id"
+        assert mock_config_entry.data[CONF_USE_AI_GATEWAY] is True
+        assert mock_config_entry.data[CONF_GATEWAY_ID] == "my-gw"

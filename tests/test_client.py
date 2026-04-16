@@ -11,8 +11,6 @@ import pytest
 from custom_components.cloudflare_ai.client import (
     CloudflareAIAuthError,
     CloudflareAIClient,
-    CloudflareAIConnectionError,
-    CloudflareAIError,
 )
 from custom_components.cloudflare_ai.const import CF_AI_GATEWAY_BASE, CF_API_BASE
 
@@ -69,11 +67,16 @@ class TestURLConstruction:
 
     def test_direct_url(self, client_direct: CloudflareAIClient) -> None:
         url = client_direct._direct_url("@cf/meta/llama-3.3-70b")
-        assert url == f"{CF_API_BASE}/accounts/test_account/ai/run/@cf/meta/llama-3.3-70b"
+        assert (
+            url == f"{CF_API_BASE}/accounts/test_account/ai/run/@cf/meta/llama-3.3-70b"
+        )
 
     def test_gateway_url(self, client_gateway: CloudflareAIClient) -> None:
         url = client_gateway._gateway_url("@cf/meta/llama-3.3-70b")
-        assert url == f"{CF_AI_GATEWAY_BASE}/test_account/my-gateway/workers-ai/@cf/meta/llama-3.3-70b"
+        assert (
+            url
+            == f"{CF_AI_GATEWAY_BASE}/test_account/my-gateway/workers-ai/@cf/meta/llama-3.3-70b"
+        )
 
     def test_use_gateway_flag(
         self,

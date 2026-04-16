@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
-import pytest
-
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
 from custom_components.cloudflare_ai.tts import (
@@ -56,40 +53,43 @@ class TestFormatDetection:
 
     def test_detect_wav(self) -> None:
         wav = make_wav_audio()
-        assert CloudflareTTSEntity._detect_audio_format(
-            wav, _get_profile("@cf/test")
-        ) == "wav"
+        assert (
+            CloudflareTTSEntity._detect_audio_format(wav, _get_profile("@cf/test"))
+            == "wav"
+        )
 
     def test_detect_mp3_sync_bytes(self) -> None:
         mp3 = bytes([0xFF, 0xFB]) + b"\x00" * 50
-        assert CloudflareTTSEntity._detect_audio_format(
-            mp3, _get_profile("@cf/test")
-        ) == "mp3"
+        assert (
+            CloudflareTTSEntity._detect_audio_format(mp3, _get_profile("@cf/test"))
+            == "mp3"
+        )
 
     def test_detect_mp3_id3(self) -> None:
         mp3 = b"ID3" + b"\x00" * 50
-        assert CloudflareTTSEntity._detect_audio_format(
-            mp3, _get_profile("@cf/test")
-        ) == "mp3"
+        assert (
+            CloudflareTTSEntity._detect_audio_format(mp3, _get_profile("@cf/test"))
+            == "mp3"
+        )
 
     def test_detect_ogg(self) -> None:
         ogg = b"OggS" + b"\x00" * 50
-        assert CloudflareTTSEntity._detect_audio_format(
-            ogg, _get_profile("@cf/test")
-        ) == "ogg"
+        assert (
+            CloudflareTTSEntity._detect_audio_format(ogg, _get_profile("@cf/test"))
+            == "ogg"
+        )
 
     def test_detect_flac(self) -> None:
         flac = b"fLaC" + b"\x00" * 50
-        assert CloudflareTTSEntity._detect_audio_format(
-            flac, _get_profile("@cf/test")
-        ) == "flac"
+        assert (
+            CloudflareTTSEntity._detect_audio_format(flac, _get_profile("@cf/test"))
+            == "flac"
+        )
 
     def test_fallback_to_profile_default(self) -> None:
         unknown = b"\x00\x01\x02\x03" + b"\x00" * 50
         profile = _get_profile("@cf/deepgram/aura-2-en")
-        assert CloudflareTTSEntity._detect_audio_format(
-            unknown, profile
-        ) == "mp3"
+        assert CloudflareTTSEntity._detect_audio_format(unknown, profile) == "mp3"
 
 
 class TestTTSEntity:

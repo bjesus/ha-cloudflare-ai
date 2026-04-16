@@ -1,0 +1,26 @@
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "T20",    # flake8-print
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # use ternary operator (readability preference)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components.cloudflare_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -4,11 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.cloudflare_ai.conversation import (
     CloudflareConversationEntity,
@@ -84,12 +80,15 @@ async def test_chat_with_tool_call(
     await hass.async_block_till_done()
 
     # Mock the LLM tool execution
-    with patch(
-        "custom_components.cloudflare_ai.conversation.llm.ToolInput",
-    ), patch(
-        "homeassistant.helpers.llm.APIInstance.async_call_tool",
-        new_callable=AsyncMock,
-        return_value={"date": "2026-03-18", "time": "20:00:00"},
+    with (
+        patch(
+            "custom_components.cloudflare_ai.conversation.llm.ToolInput",
+        ),
+        patch(
+            "homeassistant.helpers.llm.APIInstance.async_call_tool",
+            new_callable=AsyncMock,
+            return_value={"date": "2026-03-18", "time": "20:00:00"},
+        ),
     ):
         result = await hass.services.async_call(
             "conversation",
@@ -145,20 +144,24 @@ class TestResponseParsing:
     def test_parse_workers_ai_native(self) -> None:
         """Test parsing Workers AI native format."""
         entity = object.__new__(CloudflareConversationEntity)
-        result = entity._parse_response({
-            "response": "Hello!",
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        })
+        result = entity._parse_response(
+            {
+                "response": "Hello!",
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            }
+        )
         assert result["content"] == "Hello!"
         assert result["role"] == "assistant"
 
     def test_parse_with_tool_calls(self) -> None:
         """Test parsing response with tool calls."""
         entity = object.__new__(CloudflareConversationEntity)
-        result = entity._parse_response({
-            "response": None,
-            "tool_calls": [{"name": "GetDateTime", "arguments": {}}],
-        })
+        result = entity._parse_response(
+            {
+                "response": None,
+                "tool_calls": [{"name": "GetDateTime", "arguments": {}}],
+            }
+        )
         assert result["content"] == ""
         assert len(result["tool_calls"]) == 1
         assert result["tool_calls"][0]["name"] == "GetDateTime"
@@ -166,11 +169,9 @@ class TestResponseParsing:
     def test_parse_openai_format(self) -> None:
         """Test parsing OpenAI-compatible format."""
         entity = object.__new__(CloudflareConversationEntity)
-        result = entity._parse_response({
-            "choices": [
-                {"message": {"role": "assistant", "content": "Hi there!"}}
-            ]
-        })
+        result = entity._parse_response(
+            {"choices": [{"message": {"role": "assistant", "content": "Hi there!"}}]}
+        )
         assert result["content"] == "Hi there!"
 
     def test_parse_fallback(self) -> None:
@@ -188,12 +189,15 @@ class TestToolCallParsing:
         """Test CF native tool call format: {name, arguments}."""
         entity = object.__new__(CloudflareConversationEntity)
         messages: list[dict] = []
-        entity._append_tool_call_messages(messages, {
-            "content": "",
-            "tool_calls": [
-                {"name": "GetDateTime", "arguments": {}},
-            ],
-        })
+        entity._append_tool_call_messages(
+            messages,
+            {
+                "content": "",
+                "tool_calls": [
+                    {"name": "GetDateTime", "arguments": {}},
+                ],
+            },
+        )
         assert len(messages) == 1
         tc = messages[0]["tool_calls"][0]
         assert tc["function"]["name"] == "GetDateTime"
@@ -204,19 +208,22 @@ class TestToolCallParsing:
         """Test OpenAI tool call format: {function: {name, arguments}}."""
         entity = object.__new__(CloudflareConversationEntity)
         messages: list[dict] = []
-        entity._append_tool_call_messages(messages, {
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "call_123",
-                    "type": "function",
-                    "function": {
-                        "name": "GetDateTime",
-                        "arguments": "{}",
+        entity._append_tool_call_messages(
+            messages,
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_123",
+                        "type": "function",
+                        "function": {
+                            "name": "GetDateTime",
+                            "arguments": "{}",
+                        },
                     },
-                },
-            ],
-        })
+                ],
+            },
+        )
         assert len(messages) == 1
         tc = messages[0]["tool_calls"][0]
         assert tc["function"]["name"] == "GetDateTime"
@@ -242,21 +249,21 @@ class TestTokenUsageTracking:
                 },
             },
         )
-        chat_log.async_trace.assert_called_once_with({
-            "stats": {
-                "input_tokens": 100,
-                "output_tokens": 20,
+        chat_log.async_trace.assert_called_once_with(
+            {
+                "stats": {
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                }
             }
-        })
+        )
 
     def test_trace_usage_no_usage(self) -> None:
         """Test that missing usage is handled gracefully."""
         from unittest.mock import MagicMock
 
         chat_log = MagicMock()
-        CloudflareConversationEntity._trace_usage(
-            chat_log, {"response": "hello"}
-        )
+        CloudflareConversationEntity._trace_usage(chat_log, {"response": "hello"})
         chat_log.async_trace.assert_not_called()
 
     def test_trace_usage_not_dict(self) -> None:

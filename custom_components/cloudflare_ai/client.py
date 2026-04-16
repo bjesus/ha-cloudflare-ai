@@ -6,11 +6,10 @@ import asyncio
 import base64
 import json
 import logging
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
-
-from collections.abc import AsyncGenerator
 
 from .const import (
     CF_AI_GATEWAY_BASE,
@@ -74,13 +73,17 @@ class CloudflareAIClient:
             return self._gateway_url(model)
         return self._direct_url(model)
 
-    def _get_headers(self, extra_headers: dict[str, str] | None = None) -> dict[str, str]:
+    def _get_headers(
+        self, extra_headers: dict[str, str] | None = None
+    ) -> dict[str, str]:
         """Get request headers."""
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
         if self.use_gateway:
-            headers["cf-aig-authorization"] = f"Bearer {self._gateway_api_token or self._api_token}"
+            headers["cf-aig-authorization"] = (
+                f"Bearer {self._gateway_api_token or self._api_token}"
+            )
             headers["Authorization"] = f"Bearer {self._api_token}"
         else:
             headers["Authorization"] = f"Bearer {self._api_token}"
@@ -111,12 +114,12 @@ class CloudflareAIClient:
         for attempt in range(MAX_RETRIES + 1):
             try:
                 if stream:
-                    return await self._request_stream(
-                        url, input_data, timeout=timeout
-                    )
+                    return await self._request_stream(url, input_data, timeout=timeout)
                 if raw_audio is not None:
                     return await self._request_raw_audio(
-                        url, raw_audio, audio_content_type or "audio/wav",
+                        url,
+                        raw_audio,
+                        audio_content_type or "audio/wav",
                         timeout=timeout,
                     )
                 return await self._request_json(url, input_data, timeout=timeout)
@@ -125,11 +128,14 @@ class CloudflareAIClient:
             except (CloudflareAIError, httpx.HTTPError) as err:
                 last_error = err
                 if attempt < MAX_RETRIES:
-                    wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                    wait = RETRY_BACKOFF_BASE * (2**attempt)
                     _LOGGER.debug(
                         "Cloudflare AI request failed (attempt %d/%d), "
                         "retrying in %.1fs: %s",
-                        attempt + 1, MAX_RETRIES + 1, wait, err,
+                        attempt + 1,
+                        MAX_RETRIES + 1,
+                        wait,
+                        err,
                     )
                     await asyncio.sleep(wait)
 
@@ -187,7 +193,7 @@ class CloudflareAIClient:
         model: str,
         input_data: dict[str, Any],
         timeout: float = 120.0,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any]]:
         """Stream model output as parsed SSE events.
 
         Yields dicts from the Workers AI SSE stream. Each dict may contain:
@@ -200,7 +206,11 @@ class CloudflareAIClient:
         input_data = {**input_data, "stream": True}
 
         request = self._client.build_request(
-            "POST", url, headers=headers, json=input_data, timeout=timeout,
+            "POST",
+            url,
+            headers=headers,
+            json=input_data,
+            timeout=timeout,
         )
         response = await self._client.send(request, stream=True)
         try:
@@ -213,7 +223,7 @@ class CloudflareAIClient:
     @staticmethod
     async def _parse_sse(
         response: httpx.Response,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any]]:
         """Parse SSE lines from an httpx streaming response.
 
         Workers AI SSE format:
@@ -296,7 +306,7 @@ class CloudflareAIClient:
             except (CloudflareAIError, httpx.HTTPError) as err:
                 last_error = err
                 if attempt < MAX_RETRIES:
-                    wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                    wait = RETRY_BACKOFF_BASE * (2**attempt)
                     await asyncio.sleep(wait)
 
         raise CloudflareAIConnectionError(
@@ -310,9 +320,7 @@ class CloudflareAIClient:
             "Authorization": f"Bearer {self._api_token}",
         }
         try:
-            response = await self._client.get(
-                url, headers=headers, timeout=10.0
-            )
+            response = await self._client.get(url, headers=headers, timeout=10.0)
             self._check_response(response)
             return True
         except CloudflareAIAuthError:
@@ -327,15 +335,11 @@ class CloudflareAIClient:
         if response.status_code == 401:
             raise CloudflareAIAuthError("Invalid API token")
         if response.status_code == 403:
-            raise CloudflareAIAuthError(
-                "API token does not have required permissions"
-            )
+            raise CloudflareAIAuthError("API token does not have required permissions")
         if response.status_code == 429:
             raise CloudflareAIError("Rate limited by Cloudflare")
         if response.status_code >= 500:
-            raise CloudflareAIError(
-                f"Cloudflare server error: {response.status_code}"
-            )
+            raise CloudflareAIError(f"Cloudflare server error: {response.status_code}")
         if response.status_code >= 400:
             try:
                 detail = response.json()

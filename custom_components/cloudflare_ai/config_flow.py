@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -45,6 +44,7 @@ from .const import (
     CONF_ACCOUNT_ID,
     CONF_API_TOKEN,
     CONF_CHAT_MODEL,
+    CONF_ENABLE_THINKING,
     CONF_GATEWAY_API_TOKEN,
     CONF_GATEWAY_ID,
     CONF_IMAGE_MODEL,
@@ -54,7 +54,6 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_TTS_MODEL,
     CONF_USE_AI_GATEWAY,
-    CONF_ENABLE_THINKING,
     CONF_VOICE,
     DEFAULT_CHAT_MODEL,
     DEFAULT_ENABLE_THINKING,
@@ -207,9 +206,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reauth(
-        self, entry_data: dict[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Handle reauth."""
         return await self.async_step_reauth_confirm()
 
@@ -221,9 +218,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             httpx_client = get_async_client(self.hass)
-            entry = self.hass.config_entries.async_get_entry(
-                self.context["entry_id"]
-            )
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
             assert entry is not None
             client = CloudflareAIClient(
                 httpx_client=httpx_client,
@@ -286,20 +281,14 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
                 data = {
                     CONF_ACCOUNT_ID: user_input[CONF_ACCOUNT_ID],
                     CONF_API_TOKEN: user_input[CONF_API_TOKEN],
-                    CONF_USE_AI_GATEWAY: user_input.get(
-                        CONF_USE_AI_GATEWAY, False
-                    ),
+                    CONF_USE_AI_GATEWAY: user_input.get(CONF_USE_AI_GATEWAY, False),
                 }
                 if data[CONF_USE_AI_GATEWAY]:
-                    data[CONF_GATEWAY_ID] = user_input.get(
-                        CONF_GATEWAY_ID, ""
-                    )
+                    data[CONF_GATEWAY_ID] = user_input.get(CONF_GATEWAY_ID, "")
                     data[CONF_GATEWAY_API_TOKEN] = user_input.get(
                         CONF_GATEWAY_API_TOKEN, ""
                     )
-                return self.async_update_reload_and_abort(
-                    entry, data=data
-                )
+                return self.async_update_reload_and_abort(entry, data=data)
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -308,9 +297,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(
                         CONF_ACCOUNT_ID,
                         default=entry.data.get(CONF_ACCOUNT_ID, ""),
-                    ): TextSelector(
-                        TextSelectorConfig(type=TextSelectorType.TEXT)
-                    ),
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
                     vol.Required(CONF_API_TOKEN): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
                     ),
@@ -321,9 +308,7 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_GATEWAY_ID,
                         default=entry.data.get(CONF_GATEWAY_ID, ""),
-                    ): TextSelector(
-                        TextSelectorConfig(type=TextSelectorType.TEXT)
-                    ),
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
                     vol.Optional(CONF_GATEWAY_API_TOKEN): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
                     ),
@@ -391,55 +376,57 @@ class CloudflareAIConversationSubentryFlow(ConfigSubentryFlow):
 
         schema: dict[vol.Optional | vol.Required, Any] = {}
         if self._is_new:
-            schema[vol.Optional(
-                "name", default="Cloudflare AI Conversation"
-            )] = str
+            schema[vol.Optional("name", default="Cloudflare AI Conversation")] = str
 
-        schema.update({
-            vol.Optional(
-                CONF_CHAT_MODEL,
-                default=self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=chat_model_options,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    custom_value=True,
-                )
-            ),
-            vol.Optional(
-                CONF_LLM_HASS_API,
-                default=self.options.get(CONF_LLM_HASS_API),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=apis,
-                    multiple=True,
-                )
-            ),
-            vol.Optional(
-                CONF_PROMPT,
-                default=self.options.get(CONF_PROMPT, DEFAULT_PROMPT),
-            ): TemplateSelector(TemplateSelectorConfig()),
-            vol.Optional(
-                CONF_MAX_TOKENS,
-                default=self.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
-                )
-            ),
-            vol.Optional(
-                CONF_TEMPERATURE,
-                default=self.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
-                )
-            ),
-            vol.Optional(
-                CONF_ENABLE_THINKING,
-                default=self.options.get(CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING),
-            ): bool,
-        })
+        schema.update(
+            {
+                vol.Optional(
+                    CONF_CHAT_MODEL,
+                    default=self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=chat_model_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
+                ),
+                vol.Optional(
+                    CONF_LLM_HASS_API,
+                    default=self.options.get(CONF_LLM_HASS_API),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=apis,
+                        multiple=True,
+                    )
+                ),
+                vol.Optional(
+                    CONF_PROMPT,
+                    default=self.options.get(CONF_PROMPT, DEFAULT_PROMPT),
+                ): TemplateSelector(TemplateSelectorConfig()),
+                vol.Optional(
+                    CONF_MAX_TOKENS,
+                    default=self.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Optional(
+                    CONF_TEMPERATURE,
+                    default=self.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
+                    )
+                ),
+                vol.Optional(
+                    CONF_ENABLE_THINKING,
+                    default=self.options.get(
+                        CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING
+                    ),
+                ): bool,
+            }
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -502,28 +489,30 @@ class CloudflareAITTSSubentryFlow(ConfigSubentryFlow):
         if self._is_new:
             schema[vol.Optional("name", default="Cloudflare AI TTS")] = str
 
-        schema.update({
-            vol.Optional(
-                CONF_TTS_MODEL,
-                default=self.options.get(CONF_TTS_MODEL, DEFAULT_TTS_MODEL),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=tts_model_options,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    custom_value=True,
-                )
-            ),
-            vol.Optional(
-                CONF_VOICE,
-                default=self.options.get(CONF_VOICE, DEFAULT_TTS_VOICE),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=voice_options,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    custom_value=True,
-                )
-            ),
-        })
+        schema.update(
+            {
+                vol.Optional(
+                    CONF_TTS_MODEL,
+                    default=self.options.get(CONF_TTS_MODEL, DEFAULT_TTS_MODEL),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=tts_model_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
+                ),
+                vol.Optional(
+                    CONF_VOICE,
+                    default=self.options.get(CONF_VOICE, DEFAULT_TTS_VOICE),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=voice_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
+                ),
+            }
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -580,18 +569,20 @@ class CloudflareAISTTSubentryFlow(ConfigSubentryFlow):
         if self._is_new:
             schema[vol.Optional("name", default="Cloudflare AI STT")] = str
 
-        schema.update({
-            vol.Optional(
-                CONF_STT_MODEL,
-                default=self.options.get(CONF_STT_MODEL, DEFAULT_STT_MODEL),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=stt_model_options,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    custom_value=True,
-                )
-            ),
-        })
+        schema.update(
+            {
+                vol.Optional(
+                    CONF_STT_MODEL,
+                    default=self.options.get(CONF_STT_MODEL, DEFAULT_STT_MODEL),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=stt_model_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
+                ),
+            }
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -655,50 +646,52 @@ class CloudflareAITaskSubentryFlow(ConfigSubentryFlow):
         if self._is_new:
             schema[vol.Optional("name", default="Cloudflare AI Task")] = str
 
-        schema.update({
-            vol.Optional(
-                CONF_CHAT_MODEL,
-                default=self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=chat_model_options,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    custom_value=True,
-                )
-            ),
-            vol.Optional(
-                CONF_IMAGE_MODEL,
-                default=self.options.get(CONF_IMAGE_MODEL, DEFAULT_IMAGE_MODEL),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=image_model_options,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    custom_value=True,
-                )
-            ),
-            vol.Optional(
-                CONF_MAX_TOKENS,
-                default=self.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
-                )
-            ),
-            vol.Optional(
-                CONF_TEMPERATURE,
-                default=self.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
-                )
-            ),
-            vol.Optional(
-                CONF_ENABLE_THINKING,
-                default=self.options.get(
-                    CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING
+        schema.update(
+            {
+                vol.Optional(
+                    CONF_CHAT_MODEL,
+                    default=self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=chat_model_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
                 ),
-            ): bool,
-        })
+                vol.Optional(
+                    CONF_IMAGE_MODEL,
+                    default=self.options.get(CONF_IMAGE_MODEL, DEFAULT_IMAGE_MODEL),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=image_model_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
+                ),
+                vol.Optional(
+                    CONF_MAX_TOKENS,
+                    default=self.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1, max=8192, step=1, mode=NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Optional(
+                    CONF_TEMPERATURE,
+                    default=self.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0.0, max=2.0, step=0.1, mode=NumberSelectorMode.SLIDER
+                    )
+                ),
+                vol.Optional(
+                    CONF_ENABLE_THINKING,
+                    default=self.options.get(
+                        CONF_ENABLE_THINKING, DEFAULT_ENABLE_THINKING
+                    ),
+                ): bool,
+            }
+        )
 
         return self.async_show_form(
             step_id="init",

@@ -26,7 +26,6 @@ from .const import (
     CONF_VOICE,
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
-    DOMAIN,
     MELOTTS_LANGUAGES,
     SUBENTRY_TTS,
 )
@@ -46,6 +45,7 @@ _LOGGER = logging.getLogger(__name__)
 #
 # We define profiles for known models and a sensible fallback for unknown ones.
 # ---------------------------------------------------------------------------
+
 
 class _ModelProfile:
     """Describes how to call a specific TTS model and what it returns."""
@@ -153,6 +153,7 @@ def _get_profile(model: str) -> _ModelProfile:
 # Entity
 # ---------------------------------------------------------------------------
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -208,10 +209,7 @@ class CloudflareTTSEntity(TextToSpeechEntity, CloudflareAIBaseEntity):
         """Return supported voices for a language."""
         if self._profile.voices is None:
             return None
-        return [
-            Voice(voice_id=v, name=v.capitalize())
-            for v in self._profile.voices
-        ]
+        return [Voice(voice_id=v, name=v.capitalize()) for v in self._profile.voices]
 
     async def async_get_tts_audio(
         self,

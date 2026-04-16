@@ -87,20 +87,26 @@ class CloudflareAITaskEntity(ai_task.AITaskEntity, CloudflareAIBaseEntity):
         messages: list[dict[str, Any]] = []
         for content in chat_log.content:
             if isinstance(content, conversation.SystemContent):
-                messages.append({
-                    "role": "system",
-                    "content": content.content or "",
-                })
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": content.content or "",
+                    }
+                )
             elif isinstance(content, conversation.UserContent):
-                messages.append({
-                    "role": "user",
-                    "content": content.content or "",
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": content.content or "",
+                    }
+                )
             elif isinstance(content, conversation.AssistantContent):
-                messages.append({
-                    "role": "assistant",
-                    "content": content.content or "",
-                })
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": content.content or "",
+                    }
+                )
 
         request_body: dict[str, Any] = {
             "messages": messages,
@@ -112,9 +118,7 @@ class CloudflareAITaskEntity(ai_task.AITaskEntity, CloudflareAIBaseEntity):
         }
 
         try:
-            response_data = await client.run_model(
-                model, request_body, timeout=120.0
-            )
+            response_data = await client.run_model(model, request_body, timeout=120.0)
         except CloudflareAIAuthError as err:
             _LOGGER.error("AI task auth error: %s", err)
             self._config_entry.async_start_reauth(self.hass)
@@ -156,9 +160,7 @@ class CloudflareAITaskEntity(ai_task.AITaskEntity, CloudflareAIBaseEntity):
                 err,
                 text,
             )
-            raise HomeAssistantError(
-                "Error parsing structured AI response"
-            ) from err
+            raise HomeAssistantError("Error parsing structured AI response") from err
 
         return ai_task.GenDataTaskResult(
             conversation_id=chat_log.conversation_id,
@@ -225,11 +227,7 @@ class CloudflareAITaskEntity(ai_task.AITaskEntity, CloudflareAIBaseEntity):
         if isinstance(data, dict):
             # OpenAI-compatible format
             if "choices" in data:
-                return (
-                    data["choices"][0]
-                    .get("message", {})
-                    .get("content", "")
-                )
+                return data["choices"][0].get("message", {}).get("content", "")
             # Workers AI native format
             if "response" in data:
                 return data["response"] or ""
