@@ -49,6 +49,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio "pytest-homeassistant-custom-component" "cloudflare>=4.0.0" \
-            hassil home-assistant-intents mutagen haffmpeg
+            hassil home-assistant-intents mutagen ha-ffmpeg
       - name: Run tests
         run: pytest tests/ -v
