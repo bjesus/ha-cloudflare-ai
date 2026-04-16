@@ -6,10 +6,6 @@ from unittest.mock import AsyncMock, patch
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.cloudflare_ai.conversation import (
-    CloudflareConversationEntity,
-)
-
 from .conftest import (
     SAMPLE_CHAT_RESPONSE,
     SAMPLE_TOOL_CALL_RESPONSE,
@@ -80,15 +76,10 @@ async def test_chat_with_tool_call(
     await hass.async_block_till_done()
 
     # Mock the LLM tool execution
-    with (
-        patch(
-            "custom_components.cloudflare_ai.conversation.llm.ToolInput",
-        ),
-        patch(
-            "homeassistant.helpers.llm.APIInstance.async_call_tool",
-            new_callable=AsyncMock,
-            return_value={"date": "2026-03-18", "time": "20:00:00"},
-        ),
+    with patch(
+        "homeassistant.helpers.llm.APIInstance.async_call_tool",
+        new_callable=AsyncMock,
+        return_value={"date": "2026-03-18", "time": "20:00:00"},
     ):
         result = await hass.services.async_call(
             "conversation",
@@ -121,9 +112,6 @@ async def test_chat_auth_error_triggers_reauth(
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
-    # The conversation service catches HomeAssistantError and returns an
-    # error response rather than re-raising. We verify the response
-    # indicates an error and that reauth was triggered.
     result = await hass.services.async_call(
         "conversation",
         "process",
@@ -143,6 +131,10 @@ class TestResponseParsing:
 
     def test_parse_workers_ai_native(self) -> None:
         """Test parsing Workers AI native format."""
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         entity = object.__new__(CloudflareConversationEntity)
         result = entity._parse_response(
             {
@@ -155,6 +147,10 @@ class TestResponseParsing:
 
     def test_parse_with_tool_calls(self) -> None:
         """Test parsing response with tool calls."""
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         entity = object.__new__(CloudflareConversationEntity)
         result = entity._parse_response(
             {
@@ -168,6 +164,10 @@ class TestResponseParsing:
 
     def test_parse_openai_format(self) -> None:
         """Test parsing OpenAI-compatible format."""
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         entity = object.__new__(CloudflareConversationEntity)
         result = entity._parse_response(
             {"choices": [{"message": {"role": "assistant", "content": "Hi there!"}}]}
@@ -176,6 +176,10 @@ class TestResponseParsing:
 
     def test_parse_fallback(self) -> None:
         """Test fallback for unknown format."""
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         entity = object.__new__(CloudflareConversationEntity)
         result = entity._parse_response("raw string response")
         assert result["content"] == "raw string response"
@@ -187,6 +191,10 @@ class TestToolCallParsing:
 
     def test_cf_native_tool_format(self) -> None:
         """Test CF native tool call format: {name, arguments}."""
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         entity = object.__new__(CloudflareConversationEntity)
         messages: list[dict] = []
         entity._append_tool_call_messages(
@@ -206,6 +214,10 @@ class TestToolCallParsing:
 
     def test_openai_tool_format(self) -> None:
         """Test OpenAI tool call format: {function: {name, arguments}}."""
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         entity = object.__new__(CloudflareConversationEntity)
         messages: list[dict] = []
         entity._append_tool_call_messages(
@@ -237,6 +249,10 @@ class TestTokenUsageTracking:
         """Test that usage data is traced."""
         from unittest.mock import MagicMock
 
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         chat_log = MagicMock()
         CloudflareConversationEntity._trace_usage(
             chat_log,
@@ -262,6 +278,10 @@ class TestTokenUsageTracking:
         """Test that missing usage is handled gracefully."""
         from unittest.mock import MagicMock
 
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
+
         chat_log = MagicMock()
         CloudflareConversationEntity._trace_usage(chat_log, {"response": "hello"})
         chat_log.async_trace.assert_not_called()
@@ -269,6 +289,10 @@ class TestTokenUsageTracking:
     def test_trace_usage_not_dict(self) -> None:
         """Test that non-dict responses are handled."""
         from unittest.mock import MagicMock
+
+        from custom_components.cloudflare_ai.conversation import (
+            CloudflareConversationEntity,
+        )
 
         chat_log = MagicMock()
         CloudflareConversationEntity._trace_usage(chat_log, "not a dict")
