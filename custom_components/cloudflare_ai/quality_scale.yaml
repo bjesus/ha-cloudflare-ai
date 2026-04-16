@@ -13,19 +13,19 @@ rules:
     status: done
     comment: |
       Shared patterns in entity.py (base entity with DeviceInfo),
-      client.py (HTTP wrapper with retry), const.py (all constants).
+      client.py (SDK wrapper), const.py (all constants).
   config-flow:
     status: done
-    comment: Full config flow with credentials, AI Gateway toggle, and 3 subentry types.
+    comment: Full config flow with credentials, AI Gateway toggle, and 4 subentry types.
   config-flow-test-coverage:
     status: done
-    comment: 6 tests covering user step, gateway, auth error, connect error, duplicate, reauth.
+    comment: 7 tests covering user step, gateway, auth error, connect error, duplicate, reauth, reconfigure.
   dependency-transparency:
     status: done
-    comment: Zero external Python dependencies. Uses HA's built-in httpx client.
+    comment: Single dependency on the official cloudflare Python SDK (cloudflare>=4.0.0).
   docs-actions:
     status: exempt
-    comment: No custom service actions. Uses standard conversation, tts, stt platforms.
+    comment: No custom service actions. Uses standard conversation, tts, stt, ai_task platforms.
   docs-high-level-description:
     status: todo
     comment: Need to write integration documentation for home-assistant.io.
@@ -42,8 +42,11 @@ rules:
     status: done
     comment: All entities use subentry.subentry_id as unique_id.
   has-entity-name:
-    status: done
-    comment: All entities set _attr_has_entity_name = True via base entity class.
+    status: exempt
+    comment: |
+      Not using has_entity_name=True because TTS engine name resolution
+      requires entity.name to return a non-None string. Setting _attr_name
+      explicitly on the base entity instead.
   runtime-data:
     status: done
     comment: CloudflareAIClient stored as entry.runtime_data with typed alias.
@@ -60,7 +63,7 @@ rules:
   # Silver (targets for next phase)
   action-exceptions:
     status: done
-    comment: Conversation raises HomeAssistantError on CF API failures.
+    comment: Conversation raises HomeAssistantError with translation keys on CF API failures.
   config-entry-unloading:
     status: done
     comment: Full platform unload in async_unload_entry.
@@ -72,8 +75,8 @@ rules:
     status: todo
     comment: Entities don't mark themselves unavailable on API errors yet.
   integration-owner:
-    status: todo
-    comment: Need to add codeowners to manifest.json.
+    status: done
+    comment: Codeowners set to @bjesus in manifest.json.
   log-when-unavailable:
     status: todo
   parallel-updates:
@@ -83,7 +86,7 @@ rules:
     comment: Full reauth flow with async_step_reauth + async_step_reauth_confirm.
   test-coverage:
     status: done
-    comment: 60 tests across 6 test files covering all modules.
+    comment: 68+ tests across 8 test files covering all modules.
 
   # Gold (stretch goals)
   devices:
@@ -91,7 +94,7 @@ rules:
     comment: Each subentry creates a device with manufacturer=Cloudflare, model=<model_name>.
   diagnostics:
     status: done
-    comment: diagnostics.py provides redacted config dump.
+    comment: diagnostics.py provides redacted config dump with test coverage.
   discovery:
     status: exempt
     comment: Cloud service, not discoverable on the network.
