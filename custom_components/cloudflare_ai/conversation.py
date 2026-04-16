@@ -420,7 +420,15 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
 
         usage: dict[str, Any] | None = None
         async for event in client.stream_model(model, request_body):
-            text = event.get("response", "")
+            # Handle both OpenAI format (choices[0].delta.content)
+            # and Workers AI native format (response)
+            text = ""
+            choices = event.get("choices", [])
+            if choices:
+                delta = choices[0].get("delta", {})
+                text = delta.get("content") or ""
+            elif "response" in event:
+                text = event["response"] or ""
             if text:
                 yield {"content": text}
             # Capture usage from the last event

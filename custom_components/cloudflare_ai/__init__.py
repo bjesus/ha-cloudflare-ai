@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 import homeassistant.helpers.config_validation as cv
+from cloudflare import AsyncCloudflare
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -38,7 +39,13 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: CloudflareAIConfigEntry
 ) -> bool:
     """Set up Cloudflare Workers AI from a config entry."""
-    httpx_client = get_async_client(hass)
+    api_token = entry.data[CONF_API_TOKEN]
+
+    # Create the official Cloudflare SDK client, using HA's httpx client
+    cf = AsyncCloudflare(
+        api_token=api_token,
+        http_client=get_async_client(hass),
+    )
 
     gateway_id = None
     gateway_api_token = None
@@ -47,9 +54,9 @@ async def async_setup_entry(
         gateway_api_token = entry.data.get(CONF_GATEWAY_API_TOKEN)
 
     client = CloudflareAIClient(
-        httpx_client=httpx_client,
+        cf=cf,
         account_id=entry.data[CONF_ACCOUNT_ID],
-        api_token=entry.data[CONF_API_TOKEN],
+        api_token=api_token,
         gateway_id=gateway_id,
         gateway_api_token=gateway_api_token,
     )

@@ -1,22 +1,16 @@
-"""HTTP client for Cloudflare Workers AI API."""
+"""Client wrapper around the official Cloudflare Python SDK."""
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-import httpx
+from cloudflare import APIConnectionError, AsyncCloudflare, AuthenticationError
 
-from .const import (
-    CF_AI_GATEWAY_BASE,
-    CF_API_BASE,
-    MAX_RETRIES,
-    RETRY_BACKOFF_BASE,
-)
+from .const import CF_AI_GATEWAY_BASE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,18 +28,23 @@ class CloudflareAIConnectionError(CloudflareAIError):
 
 
 class CloudflareAIClient:
-    """Client for Cloudflare Workers AI API."""
+    """Client for Cloudflare Workers AI.
+
+    Wraps the official cloudflare SDK for direct API calls, and uses the
+    SDK's underlying httpx client for AI Gateway calls (which have a
+    different URL pattern).
+    """
 
     def __init__(
         self,
-        httpx_client: httpx.AsyncClient,
+        cf: AsyncCloudflare,
         account_id: str,
         api_token: str,
         gateway_id: str | None = None,
         gateway_api_token: str | None = None,
     ) -> None:
         """Initialize the client."""
-        self._client = httpx_client
+        self._cf = cf
         self._account_id = account_id
         self._api_token = api_token
         self._gateway_id = gateway_id
@@ -56,40 +55,21 @@ class CloudflareAIClient:
         """Return True if AI Gateway is configured."""
         return self._gateway_id is not None
 
-    def _direct_url(self, model: str) -> str:
-        """Get the direct API URL for a model."""
-        return f"{CF_API_BASE}/accounts/{self._account_id}/ai/run/{model}"
-
     def _gateway_url(self, model: str) -> str:
-        """Get the AI Gateway URL for a model."""
+        """Build the AI Gateway URL for a model."""
         return (
             f"{CF_AI_GATEWAY_BASE}/{self._account_id}"
             f"/{self._gateway_id}/workers-ai/{model}"
         )
 
-    def _get_url(self, model: str) -> str:
-        """Get the appropriate URL for a model."""
-        if self.use_gateway:
-            return self._gateway_url(model)
-        return self._direct_url(model)
-
-    def _get_headers(
-        self, extra_headers: dict[str, str] | None = None
-    ) -> dict[str, str]:
-        """Get request headers."""
-        headers: dict[str, str] = {
+    def _gateway_headers(self) -> dict[str, str]:
+        """Build headers for AI Gateway requests."""
+        headers = {
+            "Authorization": f"Bearer {self._api_token}",
             "Content-Type": "application/json",
         }
-        if self.use_gateway:
-            headers["cf-aig-authorization"] = (
-                f"Bearer {self._gateway_api_token or self._api_token}"
-            )
-            headers["Authorization"] = f"Bearer {self._api_token}"
-        else:
-            headers["Authorization"] = f"Bearer {self._api_token}"
-
-        if extra_headers:
-            headers.update(extra_headers)
+        if self._gateway_api_token:
+            headers["cf-aig-authorization"] = f"Bearer {self._gateway_api_token}"
         return headers
 
     async def run_model(
@@ -97,96 +77,85 @@ class CloudflareAIClient:
         model: str,
         input_data: dict[str, Any],
         *,
-        stream: bool = False,
-        raw_audio: bytes | None = None,
-        audio_content_type: str | None = None,
-        timeout: float = 60.0,
-    ) -> dict[str, Any] | httpx.Response:
-        """Run an AI model with retry logic.
-
-        For JSON input, pass input_data.
-        For raw audio input (like STT), pass raw_audio and audio_content_type.
-        If stream=True, returns the httpx.Response for streaming consumption.
-        """
-        url = self._get_url(model)
-        last_error: Exception | None = None
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                if stream:
-                    return await self._request_stream(url, input_data, timeout=timeout)
-                if raw_audio is not None:
-                    return await self._request_raw_audio(
-                        url,
-                        raw_audio,
-                        audio_content_type or "audio/wav",
-                        timeout=timeout,
-                    )
-                return await self._request_json(url, input_data, timeout=timeout)
-            except CloudflareAIAuthError:
-                raise
-            except (CloudflareAIError, httpx.HTTPError) as err:
-                last_error = err
-                if attempt < MAX_RETRIES:
-                    wait = RETRY_BACKOFF_BASE * (2**attempt)
-                    _LOGGER.debug(
-                        "Cloudflare AI request failed (attempt %d/%d), "
-                        "retrying in %.1fs: %s",
-                        attempt + 1,
-                        MAX_RETRIES + 1,
-                        wait,
-                        err,
-                    )
-                    await asyncio.sleep(wait)
-
-        raise CloudflareAIConnectionError(
-            f"Failed after {MAX_RETRIES + 1} attempts: {last_error}"
-        ) from last_error
-
-    async def _request_json(
-        self,
-        url: str,
-        input_data: dict[str, Any],
         timeout: float = 60.0,
     ) -> dict[str, Any]:
-        """Make a JSON request."""
-        headers = self._get_headers()
-        response = await self._client.post(
-            url,
-            headers=headers,
-            json=input_data,
-            timeout=timeout,
-        )
-        self._check_response(response)
-        data = response.json()
+        """Run a model and return the parsed response dict.
 
-        # Both direct API and AI Gateway (Workers AI provider) wrap results
-        # in {"result": ..., "success": true}
-        if isinstance(data, dict) and "result" in data and "success" in data:
-            return data["result"]
-        return data
+        Used for: conversation, STT (Whisper), AI task, image generation.
+        """
+        try:
+            if self.use_gateway:
+                return await self._gateway_json(model, input_data, timeout)
+            return await self._sdk_run(model, input_data, timeout)
+        except AuthenticationError as err:
+            raise CloudflareAIAuthError(str(err)) from err
+        except APIConnectionError as err:
+            raise CloudflareAIConnectionError(str(err)) from err
+        except CloudflareAIError:
+            raise
+        except Exception as err:
+            raise CloudflareAIError(str(err)) from err
 
-    async def _request_stream(
+    async def run_model_binary(
         self,
-        url: str,
+        model: str,
         input_data: dict[str, Any],
         timeout: float = 60.0,
-    ) -> httpx.Response:
-        """Make a streaming request. Returns the response for streaming."""
-        headers = self._get_headers()
-        input_data = {**input_data, "stream": True}
+    ) -> bytes:
+        """Run a model and return raw binary (for TTS).
 
-        # Use send() for streaming so we can return the response
-        request = self._client.build_request(
-            "POST",
-            url,
-            headers=headers,
-            json=input_data,
-            timeout=timeout,
-        )
-        response = await self._client.send(request, stream=True)
-        self._check_response(response)
-        return response
+        Handles both raw audio responses (Aura-2) and JSON with base64
+        audio (MeloTTS).
+        """
+        try:
+            if self.use_gateway:
+                return await self._gateway_binary(model, input_data, timeout)
+            return await self._sdk_run_binary(model, input_data, timeout)
+        except AuthenticationError as err:
+            raise CloudflareAIAuthError(str(err)) from err
+        except APIConnectionError as err:
+            raise CloudflareAIConnectionError(str(err)) from err
+        except CloudflareAIError:
+            raise
+        except Exception as err:
+            raise CloudflareAIError(str(err)) from err
+
+    async def run_model_raw_audio(
+        self,
+        model: str,
+        audio_data: bytes,
+        content_type: str = "audio/wav",
+        timeout: float = 60.0,
+    ) -> dict[str, Any]:
+        """Send raw audio bytes to an STT model (Nova-3 style).
+
+        Uses the SDK's underlying httpx client since the SDK doesn't
+        support raw binary POST with custom Content-Type.
+        """
+        try:
+            if self.use_gateway:
+                url = self._gateway_url(model)
+                headers = self._gateway_headers()
+                headers["Content-Type"] = content_type
+            else:
+                url = (
+                    "https://api.cloudflare.com/client/v4"
+                    f"/accounts/{self._account_id}/ai/run/{model}"
+                )
+                headers = {
+                    "Authorization": f"Bearer {self._api_token}",
+                    "Content-Type": content_type,
+                }
+
+            resp = await self._cf._client.post(
+                url, content=audio_data, headers=headers, timeout=timeout
+            )
+            self._check_http(resp)
+            return self._unwrap(resp.json())
+        except (CloudflareAIAuthError, CloudflareAIError):
+            raise
+        except Exception as err:
+            raise CloudflareAIError(str(err)) from err
 
     async def stream_model(
         self,
@@ -196,155 +165,268 @@ class CloudflareAIClient:
     ) -> AsyncGenerator[dict[str, Any]]:
         """Stream model output as parsed SSE events.
 
-        Yields dicts from the Workers AI SSE stream. Each dict may contain:
-          - {"response": "text_chunk", ...} — text delta
-          - {"response": "", "usage": {...}} — final usage stats
-        The [DONE] sentinel closes the generator.
+        Yields dicts from the SSE stream. Events are in OpenAI format:
+          {"choices": [{"delta": {"content": "text"}}]}
         """
-        url = self._get_url(model)
-        headers = self._get_headers()
-        input_data = {**input_data, "stream": True}
+        try:
+            if self.use_gateway:
+                async for event in self._gateway_stream(model, input_data, timeout):
+                    yield event
+            else:
+                async for event in self._sdk_stream(model, input_data, timeout):
+                    yield event
+        except AuthenticationError as err:
+            raise CloudflareAIAuthError(str(err)) from err
+        except APIConnectionError as err:
+            raise CloudflareAIConnectionError(str(err)) from err
 
-        request = self._client.build_request(
-            "POST",
-            url,
-            headers=headers,
+    async def validate_credentials(self) -> bool:
+        """Validate credentials by listing AI models."""
+        try:
+            await self._cf.ai.models.list(account_id=self._account_id)
+        except AuthenticationError as err:
+            raise CloudflareAIAuthError(str(err)) from err
+        except APIConnectionError as err:
+            raise CloudflareAIConnectionError(str(err)) from err
+        except Exception as err:
+            raise CloudflareAIConnectionError(str(err)) from err
+        else:
+            return True
+
+    # ----------------------------------------------------------------
+    # Direct Workers AI (via official SDK)
+    # ----------------------------------------------------------------
+
+    async def _sdk_run(
+        self, model: str, input_data: dict[str, Any], timeout: float
+    ) -> dict[str, Any]:
+        """Run a model via the SDK."""
+        sdk_kwargs: dict[str, Any] = {
+            "account_id": self._account_id,
+            "timeout": timeout,
+        }
+        extra: dict[str, Any] = {}
+
+        sdk_params = {
+            "messages",
+            "tools",
+            "max_tokens",
+            "temperature",
+            "stream",
+            "prompt",
+            "text",
+            "audio",
+            "image",
+            "image_b64",
+            "lang",
+            "source_lang",
+            "target_lang",
+            "top_p",
+            "top_k",
+            "frequency_penalty",
+            "presence_penalty",
+            "repetition_penalty",
+            "seed",
+            "guidance",
+            "height",
+            "width",
+            "num_steps",
+            "strength",
+            "negative_prompt",
+            "lora",
+            "raw",
+            "response_format",
+            "input_text",
+            "max_length",
+            "ignore_eos",
+            "functions",
+        }
+        for key, value in input_data.items():
+            if key in sdk_params:
+                sdk_kwargs[key] = value
+            else:
+                extra[key] = value
+
+        if extra:
+            sdk_kwargs["extra_body"] = extra
+
+        result = await self._cf.ai.run(model, **sdk_kwargs)
+
+        if isinstance(result, dict):
+            return result
+        return {"response": str(result) if result else ""}
+
+    async def _sdk_run_binary(
+        self, model: str, input_data: dict[str, Any], timeout: float
+    ) -> bytes:
+        """Run a model via SDK and return raw bytes (for TTS)."""
+        sdk_kwargs: dict[str, Any] = {
+            "account_id": self._account_id,
+            "timeout": timeout,
+        }
+        extra: dict[str, Any] = {}
+
+        sdk_params = {"text", "prompt"}
+        for key, value in input_data.items():
+            if key in sdk_params:
+                sdk_kwargs[key] = value
+            else:
+                extra[key] = value
+
+        if extra:
+            sdk_kwargs["extra_body"] = extra
+
+        raw_response = await self._cf.ai.with_raw_response.run(model, **sdk_kwargs)
+        body = await raw_response.read()
+
+        content_type = raw_response.headers.get("content-type", "")
+        if "audio/" in content_type:
+            return body
+
+        # JSON response with base64 audio (MeloTTS style)
+        try:
+            data = json.loads(body)
+            data = self._unwrap(data)
+            if isinstance(data, dict) and "audio" in data:
+                return base64.b64decode(data["audio"])
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+        return body
+
+    async def _sdk_stream(
+        self, model: str, input_data: dict[str, Any], timeout: float
+    ) -> AsyncGenerator[dict[str, Any]]:
+        """Stream via SDK."""
+        sdk_kwargs: dict[str, Any] = {
+            "account_id": self._account_id,
+            "timeout": timeout,
+            "stream": True,
+        }
+        extra: dict[str, Any] = {}
+
+        sdk_params = {
+            "messages",
+            "tools",
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "frequency_penalty",
+            "presence_penalty",
+        }
+        for key, value in input_data.items():
+            if key == "stream":
+                continue
+            if key in sdk_params:
+                sdk_kwargs[key] = value
+            else:
+                extra[key] = value
+
+        if extra:
+            sdk_kwargs["extra_body"] = extra
+
+        async with self._cf.ai.with_streaming_response.run(
+            model, **sdk_kwargs
+        ) as response:
+            async for line in response.iter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:]
+                if payload == "[DONE]":
+                    return
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    _LOGGER.debug("Failed to parse SSE: %s", payload)
+
+    # ----------------------------------------------------------------
+    # AI Gateway (via SDK's underlying httpx client)
+    # ----------------------------------------------------------------
+
+    async def _gateway_json(
+        self, model: str, input_data: dict[str, Any], timeout: float
+    ) -> dict[str, Any]:
+        """Run a model via AI Gateway."""
+        resp = await self._cf._client.post(
+            self._gateway_url(model),
             json=input_data,
+            headers=self._gateway_headers(),
             timeout=timeout,
         )
-        response = await self._client.send(request, stream=True)
+        self._check_http(resp)
+        return self._unwrap(resp.json())
+
+    async def _gateway_binary(
+        self, model: str, input_data: dict[str, Any], timeout: float
+    ) -> bytes:
+        """Run a TTS model via AI Gateway, returning audio bytes."""
+        resp = await self._cf._client.post(
+            self._gateway_url(model),
+            json=input_data,
+            headers=self._gateway_headers(),
+            timeout=timeout,
+        )
+        self._check_http(resp)
+
+        content_type = resp.headers.get("content-type", "")
+        if "audio/" in content_type:
+            return resp.content
+
         try:
-            self._check_response(response)
-            async for event in self._parse_sse(response):
-                yield event
+            data = self._unwrap(resp.json())
+            if isinstance(data, dict) and "audio" in data:
+                return base64.b64decode(data["audio"])
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+        return resp.content
+
+    async def _gateway_stream(
+        self, model: str, input_data: dict[str, Any], timeout: float
+    ) -> AsyncGenerator[dict[str, Any]]:
+        """Stream via AI Gateway."""
+        input_data = {**input_data, "stream": True}
+        request = self._cf._client.build_request(
+            "POST",
+            self._gateway_url(model),
+            json=input_data,
+            headers=self._gateway_headers(),
+            timeout=timeout,
+        )
+        resp = await self._cf._client.send(request, stream=True)
+        try:
+            self._check_http(resp)
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:]
+                if payload == "[DONE]":
+                    return
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    _LOGGER.debug("Failed to parse SSE: %s", payload)
         finally:
-            await response.aclose()
+            await resp.aclose()
+
+    # ----------------------------------------------------------------
+    # Helpers
+    # ----------------------------------------------------------------
 
     @staticmethod
-    async def _parse_sse(
-        response: httpx.Response,
-    ) -> AsyncGenerator[dict[str, Any]]:
-        """Parse SSE lines from an httpx streaming response.
-
-        Workers AI SSE format:
-            data: {"response":"token","p":"..."}
-            data: {"response":"","usage":{...}}
-            data: [DONE]
-        """
-        buffer = ""
-        async for chunk in response.aiter_text():
-            buffer += chunk
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
-                line = line.strip()
-                if not line:
-                    continue
-                if line.startswith("data: "):
-                    payload = line[6:]
-                    if payload == "[DONE]":
-                        return
-                    try:
-                        yield json.loads(payload)
-                    except json.JSONDecodeError:
-                        _LOGGER.debug("Failed to parse SSE payload: %s", payload)
-
-    async def _request_raw_audio(
-        self,
-        url: str,
-        audio_data: bytes,
-        content_type: str,
-        timeout: float = 60.0,
-    ) -> dict[str, Any]:
-        """Make a request with raw audio body (for STT models like Nova-3)."""
-        headers = self._get_headers({"Content-Type": content_type})
-        response = await self._client.post(
-            url,
-            headers=headers,
-            content=audio_data,
-            timeout=timeout,
-        )
-        self._check_response(response)
-        data = response.json()
+    def _unwrap(data: dict[str, Any]) -> dict[str, Any]:
+        """Unwrap the CF API {result: ..., success: true} envelope."""
         if isinstance(data, dict) and "result" in data and "success" in data:
             return data["result"]
         return data
 
-    async def run_model_binary(
-        self,
-        model: str,
-        input_data: dict[str, Any],
-        timeout: float = 60.0,
-    ) -> bytes:
-        """Run a model and return raw binary response (for TTS)."""
-        url = self._get_url(model)
-        last_error: Exception | None = None
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                headers = self._get_headers()
-                response = await self._client.post(
-                    url,
-                    headers=headers,
-                    json=input_data,
-                    timeout=timeout,
-                )
-                self._check_response(response)
-
-                # TTS models may return binary audio or JSON with base64
-                content_type = response.headers.get("content-type", "")
-                if "audio/" in content_type:
-                    return response.content
-                # JSON response with base64-encoded audio
-                data = response.json()
-                if isinstance(data, dict) and "result" in data and "success" in data:
-                    data = data["result"]
-                if isinstance(data, dict) and "audio" in data:
-                    return base64.b64decode(data["audio"])
-                return response.content
-            except CloudflareAIAuthError:
-                raise
-            except (CloudflareAIError, httpx.HTTPError) as err:
-                last_error = err
-                if attempt < MAX_RETRIES:
-                    wait = RETRY_BACKOFF_BASE * (2**attempt)
-                    await asyncio.sleep(wait)
-
-        raise CloudflareAIConnectionError(
-            f"Failed after {MAX_RETRIES + 1} attempts: {last_error}"
-        ) from last_error
-
-    async def validate_credentials(self) -> bool:
-        """Validate that the credentials work by listing models."""
-        url = f"{CF_API_BASE}/accounts/{self._account_id}/ai/models/search"
-        headers = {
-            "Authorization": f"Bearer {self._api_token}",
-        }
-        try:
-            response = await self._client.get(url, headers=headers, timeout=10.0)
-            self._check_response(response)
-            return True
-        except CloudflareAIAuthError:
-            raise
-        except Exception as err:
-            raise CloudflareAIConnectionError(
-                f"Failed to validate credentials: {err}"
-            ) from err
-
-    def _check_response(self, response: httpx.Response) -> None:
-        """Check the HTTP response for errors."""
-        if response.status_code == 401:
-            raise CloudflareAIAuthError("Invalid API token")
-        if response.status_code == 403:
-            raise CloudflareAIAuthError("API token does not have required permissions")
-        if response.status_code == 429:
-            raise CloudflareAIError("Rate limited by Cloudflare")
-        if response.status_code >= 500:
-            raise CloudflareAIError(f"Cloudflare server error: {response.status_code}")
-        if response.status_code >= 400:
-            try:
-                detail = response.json()
-            except Exception:
-                detail = response.text
-            raise CloudflareAIError(
-                f"Cloudflare API error {response.status_code}: {detail}"
-            )
+    @staticmethod
+    def _check_http(resp: Any) -> None:
+        """Check an httpx response for errors."""
+        if resp.status_code == 401:
+            raise CloudflareAIAuthError("Authentication failed")
+        if resp.status_code == 403:
+            raise CloudflareAIAuthError("Insufficient permissions")
+        if resp.status_code >= 400:
+            raise CloudflareAIError(f"API error {resp.status_code}: {resp.text[:200]}")

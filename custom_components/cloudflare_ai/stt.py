@@ -240,11 +240,10 @@ class CloudflareSTTEntity(SpeechToTextEntity, CloudflareAIBaseEntity):
         if metadata.format == AudioFormats.WAV and metadata.codec == AudioCodecs.PCM:
             audio_data = self._ensure_wav_header(audio_data, metadata)
 
-        result = await client.run_model(
+        result = await client.run_model_raw_audio(
             self._model,
-            {},
-            raw_audio=audio_data,
-            audio_content_type=content_type,
+            audio_data,
+            content_type=content_type,
             timeout=60.0,
         )
 

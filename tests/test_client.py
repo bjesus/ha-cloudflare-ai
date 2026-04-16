@@ -1,9 +1,9 @@
-"""Tests for the Cloudflare Workers AI HTTP client."""
+"""Tests for the Cloudflare Workers AI client wrapper."""
 
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -12,30 +12,44 @@ from custom_components.cloudflare_ai.client import (
     CloudflareAIAuthError,
     CloudflareAIClient,
 )
-from custom_components.cloudflare_ai.const import CF_AI_GATEWAY_BASE, CF_API_BASE
+from custom_components.cloudflare_ai.const import CF_AI_GATEWAY_BASE
+
+
+def _mock_cf(httpx_client: AsyncMock | None = None) -> MagicMock:
+    """Create a mock AsyncCloudflare instance."""
+    cf = MagicMock()
+    cf.ai = MagicMock()
+    cf.ai.run = AsyncMock()
+    cf.ai.with_raw_response = MagicMock()
+    cf.ai.with_raw_response.run = AsyncMock()
+    cf.ai.with_streaming_response = MagicMock()
+    cf.ai.models = MagicMock()
+    cf.ai.models.list = AsyncMock()
+    cf._client = httpx_client or AsyncMock(spec=httpx.AsyncClient)
+    return cf
 
 
 @pytest.fixture
-def mock_httpx_client() -> AsyncMock:
-    """Create a mock httpx AsyncClient."""
-    return AsyncMock(spec=httpx.AsyncClient)
+def mock_cf() -> MagicMock:
+    """Create a mock AsyncCloudflare."""
+    return _mock_cf()
 
 
 @pytest.fixture
-def client_direct(mock_httpx_client: AsyncMock) -> CloudflareAIClient:
+def client_direct(mock_cf: MagicMock) -> CloudflareAIClient:
     """Create a direct API client."""
     return CloudflareAIClient(
-        httpx_client=mock_httpx_client,
+        cf=mock_cf,
         account_id="test_account",
         api_token="test_token",
     )
 
 
 @pytest.fixture
-def client_gateway(mock_httpx_client: AsyncMock) -> CloudflareAIClient:
+def client_gateway(mock_cf: MagicMock) -> CloudflareAIClient:
     """Create an AI Gateway client."""
     return CloudflareAIClient(
-        httpx_client=mock_httpx_client,
+        cf=mock_cf,
         account_id="test_account",
         api_token="test_token",
         gateway_id="my-gateway",
@@ -63,13 +77,7 @@ def _make_response(
 
 
 class TestURLConstruction:
-    """Test URL construction for direct vs gateway."""
-
-    def test_direct_url(self, client_direct: CloudflareAIClient) -> None:
-        url = client_direct._direct_url("@cf/meta/llama-3.3-70b")
-        assert (
-            url == f"{CF_API_BASE}/accounts/test_account/ai/run/@cf/meta/llama-3.3-70b"
-        )
+    """Test URL construction for gateway."""
 
     def test_gateway_url(self, client_gateway: CloudflareAIClient) -> None:
         url = client_gateway._gateway_url("@cf/meta/llama-3.3-70b")
@@ -87,146 +95,151 @@ class TestURLConstruction:
         assert client_gateway.use_gateway is True
 
 
-class TestEnvelopeUnwrap:
-    """Test CF API response envelope unwrapping."""
+class TestDirectAPI:
+    """Test direct API calls via SDK."""
 
-    async def test_unwrap_result_envelope(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
+    async def test_run_model_calls_sdk(
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        """Both direct and gateway responses with result envelope are unwrapped."""
-        mock_httpx_client.post.return_value = _make_response(
-            json_data={
-                "result": {"response": "hello"},
-                "success": True,
-                "errors": [],
-                "messages": [],
-            }
+        """run_model delegates to cf.ai.run for direct API."""
+        mock_cf.ai.run.return_value = {"response": "hello"}
+        result = await client_direct.run_model(
+            "@cf/test/model", {"messages": [{"role": "user", "content": "hi"}]}
         )
-        result = await client_direct.run_model("@cf/test/model", {"text": "hi"})
         assert result == {"response": "hello"}
+        mock_cf.ai.run.assert_called_once()
 
-    async def test_no_unwrap_without_success(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
+    async def test_run_model_unwraps_non_dict(
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        """Responses without success key are not unwrapped."""
-        mock_httpx_client.post.return_value = _make_response(
-            json_data={"response": "hello", "tool_calls": []}
+        """Non-dict SDK results are wrapped."""
+        mock_cf.ai.run.return_value = "plain text"
+        result = await client_direct.run_model("@cf/test/model", {})
+        assert result == {"response": "plain text"}
+
+    async def test_run_model_auth_error(
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
+    ) -> None:
+        """SDK AuthenticationError is converted to CloudflareAIAuthError."""
+        from cloudflare import AuthenticationError
+
+        mock_cf.ai.run.side_effect = AuthenticationError.__new__(AuthenticationError)
+        with pytest.raises(CloudflareAIAuthError):
+            await client_direct.run_model("@cf/test/model", {})
+
+
+class TestGatewayAPI:
+    """Test AI Gateway calls via SDK's httpx client."""
+
+    async def test_gateway_json(
+        self, client_gateway: CloudflareAIClient, mock_cf: MagicMock
+    ) -> None:
+        """Gateway calls use cf._client.post with gateway URL."""
+        mock_cf._client.post = AsyncMock(
+            return_value=_make_response(
+                json_data={"result": {"response": "hello"}, "success": True}
+            )
         )
-        result = await client_direct.run_model("@cf/test/model", {"text": "hi"})
-        assert result == {"response": "hello", "tool_calls": []}
+        result = await client_gateway.run_model("@cf/test/model", {"messages": []})
+        assert result == {"response": "hello"}
+        # Verify gateway URL was used
+        call_url = mock_cf._client.post.call_args[0][0]
+        assert "gateway.ai.cloudflare.com" in call_url
+        assert "my-gateway" in call_url
 
-
-class TestErrorHandling:
-    """Test HTTP error handling."""
-
-    async def test_auth_error_401(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
+    async def test_gateway_auth_headers(
+        self, client_gateway: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        mock_httpx_client.post.return_value = _make_response(status_code=401)
-        with pytest.raises(CloudflareAIAuthError):
-            await client_direct.run_model("@cf/test/model", {})
+        """Gateway calls include cf-aig-authorization header."""
+        mock_cf._client.post = AsyncMock(
+            return_value=_make_response(json_data={"response": "ok"})
+        )
+        await client_gateway.run_model("@cf/test/model", {})
+        headers = mock_cf._client.post.call_args[1]["headers"]
+        assert headers["cf-aig-authorization"] == "Bearer gw_token"
+        assert headers["Authorization"] == "Bearer test_token"
 
-    async def test_auth_error_403(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
-    ) -> None:
-        mock_httpx_client.post.return_value = _make_response(status_code=403)
-        with pytest.raises(CloudflareAIAuthError):
-            await client_direct.run_model("@cf/test/model", {})
 
-    async def test_no_retry_on_auth_error(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
-    ) -> None:
-        """Auth errors should not be retried."""
-        mock_httpx_client.post.return_value = _make_response(status_code=401)
-        with pytest.raises(CloudflareAIAuthError):
-            await client_direct.run_model("@cf/test/model", {})
-        # Should only be called once (no retries)
-        assert mock_httpx_client.post.call_count == 1
+class TestBinaryResponse:
+    """Test run_model_binary for TTS."""
 
-    async def test_retry_on_server_error(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
+    async def test_binary_audio_direct(
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        """Server errors (5xx) should be retried."""
-        mock_httpx_client.post.side_effect = [
-            _make_response(status_code=500),
-            _make_response(status_code=500),
-            _make_response(json_data={"response": "ok"}),
-        ]
-        with patch("custom_components.cloudflare_ai.client.asyncio.sleep"):
-            result = await client_direct.run_model("@cf/test/model", {})
-        assert result == {"response": "ok"}
-        assert mock_httpx_client.post.call_count == 3
+        """Direct API TTS returns raw audio bytes."""
+        mp3_bytes = bytes([0xFF, 0xFB]) + b"\x00" * 100
+        raw_resp = MagicMock()
+        raw_resp.headers = {"content-type": "audio/mpeg"}
+        raw_resp.read = AsyncMock(return_value=mp3_bytes)
+        mock_cf.ai.with_raw_response.run = AsyncMock(return_value=raw_resp)
+
+        result = await client_direct.run_model_binary("@cf/test/tts", {"text": "hi"})
+        assert result == mp3_bytes
+
+    async def test_base64_json_direct(
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
+    ) -> None:
+        """Direct API TTS with base64 JSON response (MeloTTS style)."""
+        import base64
+
+        raw_audio = b"RIFF" + b"\x00" * 50
+        b64 = base64.b64encode(raw_audio).decode()
+        raw_resp = MagicMock()
+        raw_resp.headers = {"content-type": "application/json"}
+        raw_resp.read = AsyncMock(
+            return_value=json.dumps(
+                {"result": {"audio": b64}, "success": True}
+            ).encode()
+        )
+        mock_cf.ai.with_raw_response.run = AsyncMock(return_value=raw_resp)
+
+        result = await client_direct.run_model_binary("@cf/test/tts", {"prompt": "hi"})
+        assert result == raw_audio
+
+    async def test_binary_gateway(
+        self, client_gateway: CloudflareAIClient, mock_cf: MagicMock
+    ) -> None:
+        """Gateway TTS returns raw audio bytes."""
+        mp3_bytes = bytes([0xFF, 0xFB]) + b"\x00" * 100
+        mock_cf._client.post = AsyncMock(
+            return_value=_make_response(content=mp3_bytes, content_type="audio/mpeg")
+        )
+        result = await client_gateway.run_model_binary("@cf/test/tts", {"text": "hi"})
+        assert result == mp3_bytes
 
 
 class TestValidateCredentials:
     """Test credential validation."""
 
     async def test_validate_success(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        mock_httpx_client.get.return_value = _make_response(
-            json_data={"result": [], "success": True}
-        )
+        mock_cf.ai.models.list = AsyncMock(return_value=[])
         result = await client_direct.validate_credentials()
         assert result is True
 
     async def test_validate_auth_error(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        mock_httpx_client.get.return_value = _make_response(status_code=401)
+        from cloudflare import AuthenticationError
+
+        mock_cf.ai.models.list = AsyncMock(
+            side_effect=AuthenticationError.__new__(AuthenticationError)
+        )
         with pytest.raises(CloudflareAIAuthError):
             await client_direct.validate_credentials()
 
 
-class TestBinaryResponse:
-    """Test run_model_binary for TTS."""
+class TestEnvelopeUnwrap:
+    """Test CF API response envelope unwrapping."""
 
-    async def test_binary_audio_response(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
-    ) -> None:
-        """Direct binary audio response."""
-        audio_bytes = b"RIFF" + b"\x00" * 100
-        mock_httpx_client.post.return_value = _make_response(
-            content=audio_bytes,
-            content_type="audio/mpeg",
+    def test_unwrap_envelope(self) -> None:
+        result = CloudflareAIClient._unwrap(
+            {"result": {"response": "hello"}, "success": True}
         )
-        result = await client_direct.run_model_binary("@cf/test/tts", {"text": "hi"})
-        assert result == audio_bytes
+        assert result == {"response": "hello"}
 
-    async def test_base64_json_response(
-        self,
-        client_direct: CloudflareAIClient,
-        mock_httpx_client: AsyncMock,
-    ) -> None:
-        """Base64-encoded audio in JSON response (MeloTTS style)."""
-        import base64
-
-        raw_audio = b"RIFF" + b"\x00" * 50
-        b64_audio = base64.b64encode(raw_audio).decode()
-        mock_httpx_client.post.return_value = _make_response(
-            json_data={
-                "result": {"audio": b64_audio},
-                "success": True,
-            },
-            content_type="application/json",
-        )
-        result = await client_direct.run_model_binary("@cf/test/tts", {"text": "hi"})
-        assert result == raw_audio
+    def test_no_unwrap_without_success(self) -> None:
+        data = {"response": "hello", "tool_calls": []}
+        result = CloudflareAIClient._unwrap(data)
+        assert result == data

@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+from cloudflare import AsyncCloudflare
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -110,9 +111,11 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
             # Validate credentials
-            httpx_client = get_async_client(self.hass)
             client = CloudflareAIClient(
-                httpx_client=httpx_client,
+                cf=AsyncCloudflare(
+                    api_token=user_input[CONF_API_TOKEN],
+                    http_client=get_async_client(self.hass),
+                ),
                 account_id=user_input[CONF_ACCOUNT_ID],
                 api_token=user_input[CONF_API_TOKEN],
             )
@@ -217,11 +220,13 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            httpx_client = get_async_client(self.hass)
             entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
             assert entry is not None
             client = CloudflareAIClient(
-                httpx_client=httpx_client,
+                cf=AsyncCloudflare(
+                    api_token=user_input[CONF_API_TOKEN],
+                    http_client=get_async_client(self.hass),
+                ),
                 account_id=entry.data[CONF_ACCOUNT_ID],
                 api_token=user_input[CONF_API_TOKEN],
             )
@@ -261,9 +266,11 @@ class CloudflareAIConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self._get_reconfigure_entry()
 
         if user_input is not None:
-            httpx_client = get_async_client(self.hass)
             client = CloudflareAIClient(
-                httpx_client=httpx_client,
+                cf=AsyncCloudflare(
+                    api_token=user_input[CONF_API_TOKEN],
+                    http_client=get_async_client(self.hass),
+                ),
                 account_id=user_input[CONF_ACCOUNT_ID],
                 api_token=user_input[CONF_API_TOKEN],
             )
