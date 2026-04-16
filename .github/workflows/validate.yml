@@ -48,6 +48,6 @@ jobs:
           python-version: "3.13"
       - name: Install dependencies
         run: |
-          pip install pytest pytest-asyncio "pytest-homeassistant-custom-component" "cloudflare>=4.0.0"
+          pip install pytest pytest-asyncio "pytest-homeassistant-custom-component" "cloudflare>=4.0.0" hassil mutagen
       - name: Run tests
         run: pytest tests/ -v
