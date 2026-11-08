@@ -53,6 +53,8 @@ jobs:
       - name: Run unit tests
         run: >
           pytest tests/test_client.py
+          tests/test_client_model_path.py
+          tests/test_stt_vad.py
           tests/test_config_flow.py
           tests/test_stt.py::TestSTTModelProfiles
           tests/test_stt.py::TestResponseParsing

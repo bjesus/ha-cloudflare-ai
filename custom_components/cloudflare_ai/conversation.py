@@ -473,7 +473,9 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
         messages.append(
             {
                 "role": "assistant",
-                "content": assistant_message.get("content", ""),
+                # OpenAI-format replies send content=None with tool_calls;
+                # Workers AI rejects a null content on the next request.
+                "content": assistant_message.get("content") or "",
                 "tool_calls": normalized_tcs,
             }
         )
@@ -517,7 +519,10 @@ class CloudflareConversationEntity(ConversationEntity, CloudflareAIBaseEntity):
                         tool_args=tool_args,
                     )
                     tool_response = await chat_log.llm_api.async_call_tool(tool_input)
-                    result_str = json.dumps(tool_response)
+                    # HA 2025.x returns a dict; newer HA returns llm.ToolResult
+                    result_str = json.dumps(
+                        getattr(tool_response, "data", tool_response)
+                    )
                 except Exception as err:
                     _LOGGER.error("Tool call %s failed: %s", tool_name, err)
                     result_str = json.dumps({"error": str(err)})

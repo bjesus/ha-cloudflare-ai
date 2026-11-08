@@ -11,6 +11,7 @@ import pytest
 from custom_components.cloudflare_ai.client import (
     CloudflareAIAuthError,
     CloudflareAIClient,
+    CloudflareAIConnectionError,
 )
 from custom_components.cloudflare_ai.const import CF_AI_GATEWAY_BASE
 
@@ -96,35 +97,43 @@ class TestURLConstruction:
 
 
 class TestDirectAPI:
-    """Test direct API calls via SDK."""
+    """Test direct API calls via the SDK's httpx client."""
 
-    async def test_run_model_calls_sdk(
+    async def test_run_model_posts_to_direct_url(
         self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        """run_model delegates to cf.ai.run for direct API."""
-        mock_cf.ai.run.return_value = {"response": "hello"}
+        """run_model posts JSON to the direct Workers AI URL."""
+        mock_cf._client.post = AsyncMock(
+            return_value=_make_response(
+                json_data={"result": {"response": "hello"}, "success": True}
+            )
+        )
         result = await client_direct.run_model(
             "@cf/test/model", {"messages": [{"role": "user", "content": "hi"}]}
         )
         assert result == {"response": "hello"}
-        mock_cf.ai.run.assert_called_once()
-
-    async def test_run_model_unwraps_non_dict(
-        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
-    ) -> None:
-        """Non-dict SDK results are wrapped."""
-        mock_cf.ai.run.return_value = "plain text"
-        result = await client_direct.run_model("@cf/test/model", {})
-        assert result == {"response": "plain text"}
+        url = mock_cf._client.post.call_args.args[0]
+        assert url == (
+            "https://api.cloudflare.com/client/v4/accounts/test_account"
+            "/ai/run/@cf/test/model"
+        )
+        headers = mock_cf._client.post.call_args.kwargs["headers"]
+        assert headers["Authorization"] == "Bearer test_token"
 
     async def test_run_model_auth_error(
         self, client_direct: CloudflareAIClient, mock_cf: MagicMock
     ) -> None:
-        """SDK AuthenticationError is converted to CloudflareAIAuthError."""
-        from cloudflare import AuthenticationError
-
-        mock_cf.ai.run.side_effect = AuthenticationError.__new__(AuthenticationError)
+        """HTTP 401 is converted to CloudflareAIAuthError."""
+        mock_cf._client.post = AsyncMock(return_value=_make_response(status_code=401))
         with pytest.raises(CloudflareAIAuthError):
+            await client_direct.run_model("@cf/test/model", {})
+
+    async def test_run_model_connection_error(
+        self, client_direct: CloudflareAIClient, mock_cf: MagicMock
+    ) -> None:
+        """Network errors are converted to CloudflareAIConnectionError."""
+        mock_cf._client.post = AsyncMock(side_effect=httpx.ConnectError("down"))
+        with pytest.raises(CloudflareAIConnectionError):
             await client_direct.run_model("@cf/test/model", {})
 
 
@@ -168,11 +177,9 @@ class TestBinaryResponse:
     ) -> None:
         """Direct API TTS returns raw audio bytes."""
         mp3_bytes = bytes([0xFF, 0xFB]) + b"\x00" * 100
-        raw_resp = MagicMock()
-        raw_resp.headers = {"content-type": "audio/mpeg"}
-        raw_resp.read = AsyncMock(return_value=mp3_bytes)
-        mock_cf.ai.with_raw_response.run = AsyncMock(return_value=raw_resp)
-
+        mock_cf._client.post = AsyncMock(
+            return_value=_make_response(content=mp3_bytes, content_type="audio/mpeg")
+        )
         result = await client_direct.run_model_binary("@cf/test/tts", {"text": "hi"})
         assert result == mp3_bytes
 
@@ -184,15 +191,11 @@ class TestBinaryResponse:
 
         raw_audio = b"RIFF" + b"\x00" * 50
         b64 = base64.b64encode(raw_audio).decode()
-        raw_resp = MagicMock()
-        raw_resp.headers = {"content-type": "application/json"}
-        raw_resp.read = AsyncMock(
-            return_value=json.dumps(
-                {"result": {"audio": b64}, "success": True}
-            ).encode()
+        mock_cf._client.post = AsyncMock(
+            return_value=_make_response(
+                json_data={"result": {"audio": b64}, "success": True}
+            )
         )
-        mock_cf.ai.with_raw_response.run = AsyncMock(return_value=raw_resp)
-
         result = await client_direct.run_model_binary("@cf/test/tts", {"prompt": "hi"})
         assert result == raw_audio
 

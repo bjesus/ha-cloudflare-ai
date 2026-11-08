@@ -267,6 +267,10 @@ class CloudflareSTTEntity(SpeechToTextEntity, CloudflareAIBaseEntity):
             "audio": audio_b64,
             "language": language,
         }
+        # Near-silent audio makes Whisper invent subtitle credits; the VAD
+        # filter drops non-speech so silence comes back as "".
+        if "large-v3-turbo" in self._model:
+            input_data["vad_filter"] = True
 
         result = await client.run_model(self._model, input_data, timeout=60.0)
 

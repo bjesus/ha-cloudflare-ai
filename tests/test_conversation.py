@@ -297,3 +297,100 @@ class TestTokenUsageTracking:
         chat_log = MagicMock()
         CloudflareConversationEntity._trace_usage(chat_log, "not a dict")
         chat_log.async_trace.assert_not_called()
+
+
+async def test_tool_result_object_is_sent_to_model(
+    hass: HomeAssistant,
+    mock_config_entry,
+    mock_validate_credentials,
+    mock_run_model: AsyncMock,
+    setup_ha_components,
+) -> None:
+    """Newer HA returns llm.ToolResult from async_call_tool; its data must reach the model."""
+    from homeassistant.helpers import llm
+
+    mock_run_model.side_effect = [
+        SAMPLE_TOOL_CALL_RESPONSE,
+        SAMPLE_TOOL_RESULT_RESPONSE,
+    ]
+
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    with patch(
+        "homeassistant.helpers.llm.APIInstance.async_call_tool",
+        new_callable=AsyncMock,
+        return_value=llm.ToolResult(data={"date": "2026-03-18", "time": "20:00:00"}),
+    ):
+        await hass.services.async_call(
+            "conversation",
+            "process",
+            {
+                "text": "What time is it?",
+                "agent_id": "conversation.cloudflare_ai_conversation",
+            },
+            blocking=True,
+            return_response=True,
+        )
+
+    second_call = mock_run_model.call_args_list[1]
+    payload = second_call.args[1] if len(second_call.args) > 1 else second_call.kwargs
+    messages = payload["messages"]
+    tool_messages = [m for m in messages if m.get("role") == "tool"]
+    assert tool_messages, "tool result was not sent back to the model"
+    assert "2026-03-18" in tool_messages[0]["content"]
+    assert "error" not in tool_messages[0]["content"]
+
+
+async def test_openai_tool_call_with_null_content_is_sent_as_string(
+    hass: HomeAssistant,
+    mock_config_entry,
+    mock_validate_credentials,
+    mock_run_model: AsyncMock,
+    setup_ha_components,
+) -> None:
+    """OpenAI-format replies carry content=None next to tool_calls.
+
+    Workers AI rejects a null assistant content on the follow-up request
+    (400 "Type mismatch ... 'string' not in 'null'"), so it must be sent as "".
+    """
+    mock_run_model.side_effect = [
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {"name": "GetDateTime", "arguments": "{}"},
+                            }
+                        ],
+                    }
+                }
+            ]
+        },
+        SAMPLE_TOOL_RESULT_RESPONSE,
+    ]
+
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "conversation",
+        "process",
+        {
+            "text": "What time is it?",
+            "agent_id": "conversation.cloudflare_ai_conversation",
+        },
+        blocking=True,
+        return_response=True,
+    )
+
+    second_call = mock_run_model.call_args_list[1]
+    payload = second_call.args[1] if len(second_call.args) > 1 else second_call.kwargs
+    assistant = [m for m in payload["messages"] if m.get("tool_calls")]
+    assert assistant, "assistant tool-call message missing"
+    assert all(isinstance(m["content"], str) for m in payload["messages"])
