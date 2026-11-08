@@ -20,6 +20,7 @@ CONF_IMAGE_MODEL = "image_model"
 
 # API URLs
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
+CF_API_BASE = "https://api.cloudflare.com/client/v4"
 CF_AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1"
 
 # Defaults
